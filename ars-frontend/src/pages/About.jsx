@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import Section from "../components/Section";
-import emo from "../assets/image.png";
+import emo from "../assets/image2.png";
 import { CheckCircle2, Search, SlidersHorizontal, ExternalLink } from "lucide-react";
 
 import flowVideo from "../assets/video.mp4";
