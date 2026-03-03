@@ -1,401 +1,217 @@
-import { useMemo, useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import Section from "../components/Section";
-import emo from "../assets/image2.png";
-import { CheckCircle2, Search, SlidersHorizontal, ExternalLink } from "lucide-react";
+import heroBg from "../assets/image.png";
+import howBg from "../assets/bg11.jpg";
+import workImg from "../assets/work.jpg";
 
-import flowVideo from "../assets/video.mp4";
-
-const Pill = ({ children }) => (
-  <span className="text-xs px-3 py-1.5 rounded-full border border-zinc-200 bg-blue-50 text-blue-700">
-    {children}
-  </span>
-);
-
-const PAPERS = [
-  {
-    type: "ARTICLE",
-    title: "Attention Is All You Need",
-    source: "NeurIPS 2017",
-    tag: "Transformers",
-    year: 2017,
-    link: "https://arxiv.org/abs/1706.03762",
-  },
-  {
-    type: "ARTICLE",
-    title: "BERT: Pre-training of Deep Bidirectional Transformers",
-    source: "NAACL 2019",
-    tag: "NLP",
-    year: 2019,
-    link: "https://arxiv.org/abs/1810.04805",
-  },
-  {
-    type: "ARTICLE",
-    title: "Deep Residual Learning for Image Recognition (ResNet)",
-    source: "CVPR 2016",
-    tag: "Vision",
-    year: 2016,
-    link: "https://arxiv.org/abs/1512.03385",
-  },
-  {
-    type: "ARTICLE",
-    title: "Generative Adversarial Nets (GANs)",
-    source: "NeurIPS 2014",
-    tag: "Generative AI",
-    year: 2014,
-    link: "https://arxiv.org/abs/1406.2661",
-  },
-  {
-    type: "ARTICLE",
-    title: "Language Models are Few-Shot Learners (GPT-3)",
-    source: "NeurIPS 2020",
-    tag: "LLMs",
-    year: 2020,
-    link: "https://arxiv.org/abs/2005.14165",
-  },
-  {
-    type: "ARTICLE",
-    title: "ImageNet Classification with Deep CNNs (AlexNet)",
-    source: "NeurIPS 2012",
-    tag: "Deep Learning",
-    year: 2012,
-    link: "https://dl.acm.org/doi/10.1145/3065386",
-  },
-];
-
-const ResultCard = ({ p }) => (
-  <a
-    href={p.link}
-    target="_blank"
-    rel="noreferrer"
-    className="group relative rounded-2xl border border-zinc-200 bg-blue-50 overflow-hidden
-               transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-  >
-    {/* glow on hover */}
-    <div className="pointer-events-none absolute -inset-24 opacity-0 group-hover:opacity-100 transition duration-500">
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-200/50 via-cyan-200/40 to-indigo-200/50 blur-3xl" />
-    </div>
-
-    <div className="relative p-5">
-      <div className="text-xs font-semibold text-zinc-500 tracking-wide">{p.type}</div>
-
-      <div className="mt-2 text-lg font-semibold text-zinc-900 leading-snug line-clamp-2">
-        {p.title}
-      </div>
-
-      <div className="mt-2 text-sm text-zinc-600">{p.source}</div>
-
-      <div className="mt-4 flex flex-wrap gap-2 items-center">
-        <span className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-          {p.tag}
-        </span>
-        <span className="text-xs px-3 py-1 rounded-full bg-zinc-100 text-zinc-700 border border-zinc-200">
-          {p.year}
-        </span>
-
-        <span className="ml-auto inline-flex items-center gap-1 text-xs text-zinc-500 group-hover:text-zinc-900">
-          Open <ExternalLink className="h-3.5 w-3.5" />
-        </span>
-      </div>
-    </div>
-  </a>
-);
+import { ArrowRight, Brain, FileText, FlaskConical, ShieldCheck } from "lucide-react";
 
 export default function About() {
-  const [query, setQuery] = useState("");
-  const [contentType, setContentType] = useState("All Content");
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [yearFrom, setYearFrom] = useState(2012);
-  const [yearTo, setYearTo] = useState(2025);
-
-  const tags = useMemo(() => {
-    const set = new Set(PAPERS.map((p) => p.tag));
-    return Array.from(set).sort();
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-
-    return PAPERS.filter((p) => {
-      const matchesQuery =
-        !q ||
-        p.title.toLowerCase().includes(q) ||
-        p.source.toLowerCase().includes(q) ||
-        p.tag.toLowerCase().includes(q);
-
-      const matchesType = contentType === "All Content" || p.type === contentType;
-      const matchesTags = selectedTags.length === 0 || selectedTags.includes(p.tag);
-      const matchesYear = p.year >= yearFrom && p.year <= yearTo;
-
-      return matchesQuery && matchesType && matchesTags && matchesYear;
-    });
-  }, [query, contentType, selectedTags, yearFrom, yearTo]);
-
-  const toggleTag = (t) => {
-    setSelectedTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
-  };
+  const STEPS = [
+    {
+      title: "1) Give a goal prompt",
+      desc: "Start with a clear research objective—ARS uses it to plan the entire cycle.",
+      icon: Brain,
+      bullets: ["Defines scope + constraints", "Chooses the right agent flow", "Creates a structured plan"],
+    },
+    {
+      title: "2) Ingest & understand literature",
+      desc: "ARS reads sources and extracts key methods, findings, and limitations.",
+      icon: FileText,
+      bullets: ["Summarizes core ideas", "Extracts methods & results", "Flags limitations/assumptions"],
+    },
+    {
+      title: "3) Find gaps & propose hypotheses",
+      desc: "The system identifies underexplored directions and drafts testable hypotheses.",
+      icon: ShieldCheck,
+      bullets: ["Detects contradictions & missing links", "Generates hypotheses", "Adds rationale for each"],
+    },
+    {
+      title: "4) Design experiments",
+      desc: "ARS creates reproducible experiment plans to validate hypotheses.",
+      icon: FlaskConical,
+      bullets: ["Defines datasets & baselines", "Chooses metrics", "Outlines evaluation steps"],
+    },
+  ];
 
   return (
-    <div className="relative min-h-screen bg-blue-50 text-zinc-900 overflow-hidden">
-      {/* page-wide glow blobs */}
-      <div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 bg-cyan-300/25 rounded-full blur-3xl animate-pulse" />
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[520px] w-[520px] bg-indigo-300/25 rounded-full blur-3xl animate-pulse" />
-
+    <div className="relative min-h-screen bg-[#f6f0e6] text-zinc-900 overflow-hidden">
       <Navbar />
 
-      {/* ===== HERO (with glow + emo image) ===== */}
-      <div className="mx-auto max-w-6xl px-4 pt-12 pb-6 relative">
-        <div className="group relative overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50 p-8 shadow-md
-                        transition duration-300 hover:shadow-2xl hover:-translate-y-1">
-          {/* hover glow */}
-          <div className="pointer-events-none absolute -inset-24 opacity-0 group-hover:opacity-100 transition duration-500">
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-300/35 via-blue-300/30 to-indigo-300/35 blur-3xl" />
-          </div>
+      {/* ================= HERO ================= */}
+      <section className="relative">
+        <div className="mx-auto max-w-6xl px-4 pt-16 pb-10">
+          <div className="relative overflow-hidden rounded-[40px] border border-white/60 bg-white/60 backdrop-blur-xl shadow-[0_30px_90px_-55px_rgba(0,0,0,0.45)]">
+            <div
+              className="absolute inset-0 opacity-70"
+              style={{
+                backgroundImage: `url(${heroBg})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/80 to-white/95" />
 
-          <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            {/* LEFT */}
-            <div>
-              <div className="flex flex-wrap gap-2">
-                <Pill>Multi-Agent System</Pill>
-                <Pill>Autonomous Research Loop</Pill>
-                <Pill>Experiment + Evaluation</Pill>
-                <Pill>Decision Logs</Pill>
+            <div className="relative px-8 py-14 text-center">
+              <div className="inline-flex items-center gap-2 text-xs px-4 py-2 rounded-full border-2 border-black bg-white text-black font-semibold">
+                About ARS
               </div>
 
-              <h1 className="mt-5 text-3xl md:text-4xl font-semibold leading-tight">
-                Innovation in Research —{" "}
-                <span className="text-cyan-700">powered by autonomous agents</span>
+              <h1 className="mt-6 text-4xl md:text-6xl font-extrabold tracking-tight">
+                Autonomous Research, explained simply.
               </h1>
 
-              <p className="mt-3 text-zinc-600 max-w-3xl leading-relaxed">
-                ARS automates the research workflow: it reads papers, identifies gaps, generates hypotheses,
-                designs experiments, evaluates outcomes, and improves over iterations — with full explainability.
+              <p className="mt-6 max-w-2xl mx-auto text-zinc-700 leading-relaxed">
+                ARS is a multi-agent research system that helps you go from a research question to a structured
+                plan—summaries, gaps, hypotheses, and experiment design—while keeping the output clear and explainable.
               </p>
             </div>
-
-            {/* RIGHT emo image */}
-            <div className="relative flex justify-center lg:justify-end">
-              <div className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-r from-blue-200/40 via-cyan-200/30 to-indigo-200/40 blur-3xl opacity-70" />
-              <img
-                src={emo}
-                alt="ARS illustration"
-                className="relative w-72 md:w-[420px] rounded-3xl border border-zinc-200 shadow-xl
-                           hover:scale-[1.03] transition duration-300"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ===== HOW IT WORKS ===== */}
-      <Section
-        title="How ARS works"
-        subtitle="A complete research cycle that repeats and improves over time."
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Video */}
-          <div className="group relative rounded-3xl border border-zinc-200 bg-blue-50 p-5 shadow-sm
-                          transition duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
-            {/* hover glow */}
-            <div className="pointer-events-none absolute -inset-24 opacity-0 group-hover:opacity-100 transition duration-500">
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-200/35 via-blue-200/30 to-indigo-200/35 blur-3xl" />
-            </div>
-
-            <div className="relative">
-              <div className="text-sm font-semibold mb-3 text-zinc-900">Workflow overview</div>
-
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 overflow-hidden">
-                <video
-                  src={flowVideo}
-                  className="rounded-xl w-full object-contain"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  controls
-                />
-              </div>
-
-              <div className="mt-4 text-xs text-zinc-500">
-                Keep this model consistent across app screens and pitch deck.
-              </div>
-            </div>
-          </div>
-
-          {/* Steps */}
-          <div className="group relative rounded-3xl border border-zinc-200 bg-blue-50 p-6 shadow-sm
-                          transition duration-300 hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
-            {/* hover glow */}
-            <div className="pointer-events-none absolute -inset-24 opacity-0 group-hover:opacity-100 transition duration-500">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-200/35 via-cyan-200/25 to-indigo-200/35 blur-3xl" />
-            </div>
-
-            <div className="relative">
-              <div className="font-semibold text-lg">Research Cycle</div>
-              <ol className="mt-4 space-y-3 text-sm text-zinc-700">
-                {[
-                  "User uploads research document",
-                  "AI analyzes and extracts insights",
-                  "System matches with research database",
-                  "Gap detection & contradiction analysis",
-                  "Hypothesis generation + novelty scoring",
-                  "Conclusion with suggested next steps",
-                ].map((x) => (
-                  <li key={x} className="flex gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        </div>
-      </Section>
-
-      {/* ===== EXPLORE LIBRARY ===== */}
-      <section className="bg-white text-zinc-900">
-        <div className="border-b border-zinc-200">
-          <div className="mx-auto max-w-6xl px-4 py-10">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-2xl md:text-3xl font-semibold">Explore Research Library</h2>
-              <button className="text-sm underline text-zinc-700 hover:text-zinc-900">
-                Advanced Search
-              </button>
-            </div>
-
-            <div className="mt-6 flex flex-col md:flex-row gap-3">
-              <div className="md:w-56">
-                <select
-                  value={contentType}
-                  onChange={(e) => setContentType(e.target.value)}
-                  className="w-full h-12 rounded-xl border border-zinc-300 bg-blue-50 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-200"
-                >
-                  <option>All Content</option>
-                  <option>ARTICLE</option>
-                </select>
-              </div>
-
-              <div className="flex-1 relative">
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search journals, papers, books, datasets..."
-                  className="w-full h-12 rounded-xl border border-zinc-300 bg-blue-50 pl-4 pr-12 text-sm outline-none focus:ring-2 focus:ring-blue-200"
-                />
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mx-auto max-w-6xl px-4 py-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Sidebar */}
-            <aside className="lg:col-span-3">
-              <div className="sticky top-24">
-                <div className="group relative rounded-2xl border border-zinc-200 bg-blue-50 p-5 shadow-sm
-                                transition duration-300 hover:shadow-xl overflow-hidden">
-                  <div className="pointer-events-none absolute -inset-24 opacity-0 group-hover:opacity-100 transition duration-500">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-200/35 via-cyan-200/25 to-indigo-200/35 blur-3xl" />
-                  </div>
-
-                  <div className="relative">
-                    <div className="flex items-center gap-2">
-                      <SlidersHorizontal className="h-4 w-4 text-zinc-700" />
-                      <div className="font-semibold">Filters</div>
-                    </div>
-
-                    <div className="mt-5">
-                      <div className="text-xs font-semibold text-zinc-500">TOPICS</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {tags.map((t) => {
-                          const active = selectedTags.includes(t);
-                          return (
-                            <button
-                              key={t}
-                              onClick={() => toggleTag(t)}
-                              className={`text-xs px-3 py-1.5 rounded-full border transition ${
-                                active
-                                  ? "bg-blue-600 text-white border-blue-600"
-                                  : "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100"
-                              }`}
-                            >
-                              {t}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="mt-6">
-                      <div className="text-xs font-semibold text-zinc-500">YEAR</div>
-                      <div className="mt-3 grid grid-cols-2 gap-3">
-                        <div>
-                          <div className="text-[11px] text-zinc-500 mb-1">From</div>
-                          <input
-                            type="number"
-                            value={yearFrom}
-                            onChange={(e) => setYearFrom(Number(e.target.value))}
-                            className="w-full h-10 rounded-xl border border-zinc-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-200"
-                          />
-                        </div>
-                        <div>
-                          <div className="text-[11px] text-zinc-500 mb-1">To</div>
-                          <input
-                            type="number"
-                            value={yearTo}
-                            onChange={(e) => setYearTo(Number(e.target.value))}
-                            className="w-full h-10 rounded-xl border border-zinc-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-200"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setQuery("");
-                        setContentType("All Content");
-                        setSelectedTags([]);
-                        setYearFrom(2012);
-                        setYearTo(2025);
-                      }}
-                      className="mt-6 w-full h-11 rounded-xl border border-zinc-200 bg-blue-50 hover:bg-blue-100 transition text-sm font-medium"
-                    >
-                      Reset filters
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </aside>
-
-            {/* Results */}
-            <main className="lg:col-span-9">
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-sm text-zinc-600">
-                  Showing{" "}
-                  <span className="font-semibold text-zinc-900">{filtered.length}</span>{" "}
-                  results
-                </div>
-              </div>
-
-              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {filtered.map((p) => (
-                  <ResultCard key={p.title} p={p} />
-                ))}
-              </div>
-
-              {filtered.length === 0 && (
-                <div className="mt-10 rounded-2xl border border-zinc-200 bg-blue-50 p-6 text-zinc-700">
-                  No results found. Try changing keywords or filters.
-                </div>
-              )}
-            </main>
           </div>
         </div>
       </section>
 
+      {/* ================= HOW IT WORKS (BG + SIDE IMAGE) ================= */}
+      <section className="relative overflow-hidden">
+        {/* background only for this section */}
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url(${howBg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+        <div className="absolute inset-0 bg-white/85 backdrop-blur-sm" />
+
+        <div className="relative mx-auto max-w-6xl px-4 py-16">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 text-xs px-4 py-2 rounded-full border border-zinc-200 bg-white text-zinc-700">
+              How it works
+            </div>
+
+            <h2 className="mt-4 text-3xl md:text-4xl font-extrabold tracking-tight">
+              One prompt → a complete research cycle
+            </h2>
+
+            <p className="mt-3 text-zinc-700 max-w-2xl mx-auto leading-relaxed">
+              ARS follows a structured workflow so you always get organized outputs—not messy paragraphs.
+            </p>
+          </div>
+
+          {/* layout: image + steps */}
+          <div className="mt-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* left image */}
+            <div className="lg:col-span-4">
+              <div className="sticky top-24">
+                <div className="rounded-[28px] border-2 border-black bg-white/80 backdrop-blur overflow-hidden shadow-[0_20px_70px_-55px_rgba(0,0,0,0.35)]">
+                  <div className="relative">
+                    <img
+                      src={workImg}
+                      alt="How ARS works"
+                      className="w-full h-[420px] object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-white/85 via-white/15 to-transparent" />
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <div className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border-2 border-black bg-white text-black font-semibold">
+                        Research workflow
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-zinc-900">
+                        Clear steps • Structured output • Explainable
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-zinc-200 bg-white/80 backdrop-blur p-4 text-sm text-zinc-700">
+                  Tip: Use short prompts like <span className="font-semibold">“Summarize + gaps + experiments”</span> for the best results.
+                </div>
+              </div>
+            </div>
+
+            {/* right steps */}
+            <div className="lg:col-span-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {STEPS.map((s) => (
+                  <StepCard key={s.title} {...s} />
+                ))}
+              </div>
+
+              {/* Output Preview */}
+              <div className="mt-8 rounded-3xl border border-zinc-200 bg-white/90 p-6 shadow-md">
+                <div className="text-sm font-extrabold text-zinc-900">What you get</div>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {["Literature Summary", "Gap Analysis", "Hypotheses", "Experiment Blueprint"].map((x) => (
+                    <div
+                      key={x}
+                      className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
+                    >
+                      {x}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 text-xs text-zinc-600">
+                  Tip: Use this cycle for thesis planning, paper reviews, or hackathon research validation.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= READY TO RUN ================= */}
+      <section className="bg-[#f6f0e6]">
+        <div className="mx-auto max-w-6xl px-4 py-16 text-center">
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
+            Ready to run your first research cycle?
+          </h2>
+
+          <p className="mt-4 text-zinc-600">
+            Start with a goal prompt and let ARS generate structured research outputs.
+          </p>
+
+          <a
+            href="/app"
+            className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-black text-white font-semibold hover:bg-zinc-800 transition"
+          >
+            Start Research <ArrowRight className="h-4 w-4" />
+          </a>
+        </div>
+      </section>
+
       <Footer />
+    </div>
+  );
+}
+
+function StepCard({ icon: Icon, title, desc, bullets }) {
+  return (
+    <div className="group rounded-3xl border border-zinc-200 bg-white/90 backdrop-blur p-7
+                    shadow-[0_14px_50px_-40px_rgba(0,0,0,0.25)]
+                    hover:shadow-[0_28px_90px_-55px_rgba(0,0,0,0.35)]
+                    hover:-translate-y-1 transition-all duration-300">
+      <div className="flex items-start gap-4">
+        <div className="h-12 w-12 rounded-2xl border-2 border-black bg-white grid place-items-center">
+          <Icon className="h-6 w-6 text-black" />
+        </div>
+
+        <div className="flex-1">
+          <div className="text-lg font-extrabold text-zinc-900">{title}</div>
+          <div className="mt-2 text-sm text-zinc-600 leading-relaxed">{desc}</div>
+
+          <ul className="mt-4 space-y-2 text-sm text-zinc-700">
+            {bullets.map((b) => (
+              <li key={b} className="flex items-start gap-2">
+                <span className="mt-2 h-1.5 w-1.5 rounded-full bg-black shrink-0" />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="mt-6 h-[2px] w-12 bg-black group-hover:w-full transition-all duration-500" />
     </div>
   );
 }
