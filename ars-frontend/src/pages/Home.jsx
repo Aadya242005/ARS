@@ -447,20 +447,7 @@ export default function Home() {
                       </span>
                     </SoundButton>
 
-                    <SoundButton
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-xl border border-zinc-200 bg-white/80 text-zinc-900 backdrop-blur transition
-                                 hover:bg-white hover:-translate-y-0.5 hover:shadow-[0_14px_45px_-35px_rgba(0,0,0,0.35)]"
-                      onClick={() => (window.location.href = "/about")}
-                    >
-                      Learn More
-                    </SoundButton>
-                  </div>
-
-                  <div className="mt-9 flex flex-wrap gap-3">
-                    <Pill>7 Agents</Pill>
-                    <Pill>Decision Logs</Pill>
-                    <Pill>Reasoning Traces</Pill>
-                    <Pill>Self-Improving</Pill>
+                 
                   </div>
                 </div>
 
@@ -491,10 +478,6 @@ export default function Home() {
                         )}
                       </div>
                     </div>
-
-                    <div className="mt-5 text-xs text-white/50">
-                      Live logs/metrics will appear once backend integration is connected.
-                    </div>
                   </div>
                 </div>
               </div>
@@ -516,9 +499,7 @@ export default function Home() {
               className="lg:col-span-6"
             >
               <div className="rounded-3xl border border-zinc-200 bg-white p-10 shadow-[0_20px_70px_-55px_rgba(0,0,0,0.35)]">
-                <div className="inline-flex items-center gap-2 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full border-2 border-zinc-900 bg-white text-zinc-900">
-                  AUTONOMOUS RESEARCH
-                </div>
+                
 
                 <h2 className="mt-5 text-4xl md:text-5xl font-extrabold text-zinc-950 tracking-tight leading-[1.05]">
                   A hub for research <br /> and discovery
@@ -550,17 +531,11 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="mt-6 flex flex-wrap gap-2">
-                  <MiniTag>No human intervention</MiniTag>
-                  <MiniTag>Hypothesis justification</MiniTag>
-                  <MiniTag>Traceability</MiniTag>
-                </div>
-
                 <Link
                   to="/about"
                   className="mt-8 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-900 text-white font-semibold hover:bg-zinc-800 hover:shadow-lg hover:-translate-y-0.5 transition"
                 >
-                  Explore our research <ArrowRight className="h-4 w-4" />
+                  Explore usage <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             </motion.div>
@@ -711,12 +686,12 @@ export default function Home() {
                   </p>
 
                   <div className="mt-6 flex flex-wrap gap-3">
-                    <Link
+                    {/* <Link
                       to="/about"
                       className="inline-flex items-center justify-center px-5 py-3 rounded-xl border border-zinc-200 bg-white text-zinc-900 font-semibold hover:bg-zinc-50 hover:shadow-md hover:-translate-y-0.5 transition"
                     >
                       Browse by collection
-                    </Link>
+                    </Link> */}
 
                     <SoundButton
                       className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-zinc-900 text-white font-semibold hover:bg-zinc-800 hover:shadow-lg hover:-translate-y-0.5 transition"
