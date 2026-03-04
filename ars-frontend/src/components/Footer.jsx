@@ -160,35 +160,7 @@ export default function Footer() {
               </div>
             </div>
 
-            {/* Newsletter */}
-            <div className="mt-5 rounded-3xl border-2 border-black bg-white p-4">
-              <div className="text-sm font-extrabold text-black">
-                Stay updated
-              </div>
-              <div className="mt-1 text-xs text-zinc-600">
-                Release notes, research updates, and new agent features.
-              </div>
 
-              <form
-                className="mt-3 flex gap-2"
-                onSubmit={(e) => e.preventDefault()}
-              >
-                <input
-                  type="email"
-                  placeholder="Email address"
-                  className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm outline-none focus:border-black"
-                />
-                <button
-                  type="submit"
-                  className="rounded-2xl border-2 border-black bg-black text-white px-4 py-2 text-sm font-semibold hover:bg-zinc-900 transition"
-                >
-                  Subscribe
-                </button>
-              </form>
-              <div className="mt-2 text-[11px] text-zinc-500">
-                No spam. Unsubscribe anytime.
-              </div>
-            </div>
           </div>
         </div>
 

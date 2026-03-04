@@ -53,9 +53,9 @@ export default function About() {
             <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/80 to-white/95" />
 
             <div className="relative px-8 py-14 text-center">
-              <div className="inline-flex items-center gap-2 text-xs px-4 py-2 rounded-full border-2 border-black bg-white text-black font-semibold">
+              {/* <div className="inline-flex items-center gap-2 text-xs px-4 py-2 rounded-full border-2 border-black bg-white text-black font-semibold">
                 About ARS
-              </div>
+              </div> */}
 
               <h1 className="mt-6 text-4xl md:text-6xl font-extrabold tracking-tight">
                 Autonomous Research, explained simply.
@@ -85,9 +85,9 @@ export default function About() {
 
         <div className="relative mx-auto max-w-6xl px-4 py-16">
           <div className="text-center">
-            <div className="inline-flex items-center gap-2 text-xs px-4 py-2 rounded-full border border-zinc-200 bg-white text-zinc-700">
+            {/* <div className="inline-flex items-center gap-2 text-xs px-4 py-2 rounded-full border border-zinc-200 bg-white text-zinc-700">
               How it works
-            </div>
+            </div> */}
 
             <h2 className="mt-4 text-3xl md:text-4xl font-extrabold tracking-tight">
               One prompt → a complete research cycle
