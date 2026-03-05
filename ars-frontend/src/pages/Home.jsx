@@ -343,7 +343,7 @@ export default function Home() {
         ...m,
         {
           role: "assistant",
-          text: `⚠️ I couldn't reach Gemini. Check backend is running on :5050.\n\nError: ${e.message}`,
+          text: `⚠️ Error: ${e.message}\n\nMake sure the backend is running on http://localhost:5050`,
         },
       ]);
     } finally {
