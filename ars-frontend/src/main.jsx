@@ -5,6 +5,7 @@ import "./index.css";
 import Home from "./pages/Home.jsx";
 import About from "./pages/About.jsx";
 import ResearchDashboard from "./pages/ResearchDashboard.jsx";
+import SearchResearch from "./pages/Searchresearch.jsx";
 import DocSummary from "./pages/DocSummary";
 import ResearchPlan from "./pages/ResearchPlan";
 
@@ -18,6 +19,7 @@ function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/about" element={<About />} />
       <Route path="/app" element={<ResearchDashboard />} />
+      <Route path="/search" element={<SearchResearch />} />
       <Route path="/summary" element={<DocSummary />} />
       <Route path="/research" element={<ResearchPlan />} />
     </Routes>
