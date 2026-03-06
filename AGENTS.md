@@ -11,9 +11,7 @@ Documents → Knowledge → Hypothesis → Experiment → Execution → Analysis
   PDFs      Points        H3...        E3...        Exps       & Conc.    Passed     Steps
 ```
 
-## Agent Details
 
-### 1️⃣ **Knowledge Agent** → `workspace.knowledge`
 
 **Input:** Research goal + uploaded documents (via retriever)
 
@@ -36,7 +34,6 @@ workspace.knowledge = [
 
 ---
 
-### 2️⃣ **Hypothesis Agent** → `workspace.hypotheses`
 
 **Input:** Knowledge + research goal
 
