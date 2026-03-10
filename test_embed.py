@@ -2,7 +2,7 @@ import os
 import json
 from openai import OpenAI
 
-# Test embedding
+# testing 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 text = "This is a test chunk for embedding."
 
