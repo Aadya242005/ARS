@@ -122,3 +122,4 @@ Frontend: React, TailwindCSS, Vite
 Backend: FastAPI, Python
 Agent System: LangGraph, LangChain, LLM APIs
 Infrastructure: Embeddings, Vector Search, Retrieval Pipelines
+deployed link for frontend:
