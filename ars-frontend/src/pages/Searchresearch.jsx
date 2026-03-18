@@ -14,6 +14,7 @@ function Pill({ tone = "neutral", children }) {
       : tone === "bad"
       ? "bg-rose-50 text-rose-700 ring-rose-200"
       : "bg-slate-50 text-slate-700 ring-slate-200";
+
   return (
     <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ring-1 ${cls}`}>
       {children}
@@ -72,10 +73,12 @@ export default function SearchResearch() {
   async function startResearch() {
     if (!topic.trim() || searching) return;
 
+    const cleanTopic = topic.trim();
+
     setSearching(true);
     setLogs([]);
     setResearch({
-      topic: topic.trim(),
+      topic: cleanTopic,
       knowledge: [],
       hypotheses: [],
       experiments: [],
@@ -85,86 +88,61 @@ export default function SearchResearch() {
       final: "",
     });
 
-    pushLog(`Starting agentic research on: "${topic}"`, "info");
+    pushLog(`Starting agentic research on: "${cleanTopic}"`, "info");
 
     try {
-      // Step 1: Start research on backend
       pushLog("Initiating backend research pipeline…", "info");
-      const startRes = await fetch("http://localhost:8000/api/research/topic", {
+
+      const startRes = await fetch("http://127.0.0.1:5050/api/research/topic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: topic.trim(), mode: "full" }),
+        body: JSON.stringify({ topic: cleanTopic, mode: "full" }),
       });
 
+      const data = await startRes.json();
+
       if (!startRes.ok) {
-        throw new Error(`Backend error: ${startRes.status} ${startRes.statusText}`);
+        throw new Error(data.detail || `Backend error: ${startRes.status} ${startRes.statusText}`);
       }
 
-      const { run_id } = await startRes.json();
-      pushLog(`Research pipeline started: ${run_id}`, "good");
+      pushLog("✓ Backend research response received", "good");
+      pushLog("Processing research insights…", "info");
 
-      // Step 2: Stream events from backend
-      pushLog("Streaming agent updates…", "info");
-      const streamRes = await fetch(`http://localhost:8000/api/runs/${run_id}/stream`);
+      setResearch({
+        topic: data.topic || cleanTopic,
+        knowledge: [],
+        hypotheses: [],
+        experiments: [],
+        results: [],
+        validation: [],
+        learning: {
+          keyLearnings: [
+            "Topic research response generated successfully.",
+            "Structured research summary was created by backend.",
+          ],
+          bestPractices: [
+            "Use academic sources for deeper validation.",
+            "Cross-check findings with recent publications.",
+          ],
+          nextSteps: [
+            "Break this topic into sub-problems.",
+            "Collect sources, papers, and datasets.",
+            "Convert summary into formal research document.",
+          ],
+          risks: [
+            "LLM-generated summary may need factual verification.",
+            "Further domain-specific evidence may be required.",
+          ],
+        },
+        final: data.reply || "No research summary returned from backend.",
+      });
 
-      if (!streamRes.ok) {
-        throw new Error("Failed to stream events");
-      }
-
-      const reader = streamRes.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-
-          const eventMatch = line.match(/^event:(.+)$/m);
-          const dataMatch = line.match(/^data:(.+)$/m);
-
-          if (eventMatch && dataMatch) {
-            const event = eventMatch[1];
-            const data = JSON.parse(dataMatch[1]);
-
-            if (event === "run_started") {
-              pushLog("⚙️ Research cycle initiated", "info");
-            } else if (event === "node_started") {
-              const nodeName = data.node.toUpperCase();
-              pushLog(`${nodeName} agent running…`, "info");
-            } else if (event === "node_finished") {
-              const nodeName = data.node.toUpperCase();
-              pushLog(`✓ ${nodeName} agent complete`, "good");
-            } else if (event === "state_update") {
-              // Update research state with latest data
-              setResearch({
-                topic: data.goal ? data.goal.substring(0, 50) : topic.trim(),
-                knowledge: data.workspace?.knowledge || [],
-                hypotheses: data.workspace?.hypotheses || [],
-                experiments: data.workspace?.experiments || [],
-                results: data.workspace?.results || [],
-                validation: data.workspace?.validation || [],
-                learning: data.workspace?.learning || {},
-                final: data.workspace?.final || "",
-              });
-            } else if (event === "run_finished") {
-              pushLog("🎉 Research cycle complete!", "good");
-            }
-          }
-        }
-      }
-
-      setActiveTab("knowledge");
+      pushLog("✓ Research summary generated", "good");
       pushLog("✅ All research insights ready for review", "good");
+      setActiveTab("overview");
     } catch (e) {
       pushLog(`❌ Error: ${e.message}`, "bad");
-      pushLog("Make sure backend is running on http://localhost:8000", "warn");
+      pushLog("Check backend logs on port 5050 for exact error details.", "warn");
     } finally {
       setSearching(false);
     }
@@ -176,7 +154,6 @@ export default function SearchResearch() {
     }
   }
 
-  // Generate research summary like a junior research scientist
   function generateResearchSummary() {
     const { topic, knowledge, hypotheses, experiments, results, validation, learning, final } = research;
 
@@ -184,70 +161,55 @@ export default function SearchResearch() {
     summary += `Generated on: ${new Date().toLocaleDateString()}\n\n`;
 
     summary += `EXECUTIVE SUMMARY\n`;
-    summary += `This research investigated ${topic} using an automated 7-agent research pipeline. `;
-    summary += `The analysis covered ${knowledge.length} key knowledge points, `;
-    summary += `tested ${hypotheses.length} hypotheses through ${experiments.length} experiments, `;
-    summary += `and achieved ${results.filter(r => r.status === 'PASS').length}/${results.length} successful validations.\n\n`;
+    summary += `This research investigated ${topic} using an automated research workflow. `;
+    summary += `The current system generated a structured topic-level summary and planning response. `;
+    summary += `Knowledge items: ${knowledge.length}, Hypotheses: ${hypotheses.length}, Experiments: ${experiments.length}, Validations: ${validation.length}.\n\n`;
+
+    summary += `RESEARCH OUTPUT\n`;
+    summary += `${final}\n\n`;
 
     summary += `KEY FINDINGS\n`;
-    if (learning.keyLearnings) {
-      learning.keyLearnings.forEach((learning, i) => {
-        summary += `${i + 1}. ${learning}\n`;
+    if (learning.keyLearnings?.length) {
+      learning.keyLearnings.forEach((item, i) => {
+        summary += `${i + 1}. ${item}\n`;
+      });
+    } else {
+      summary += `1. Initial topic-level summary generated.\n`;
+      summary += `2. More agent stages can be integrated later.\n`;
+    }
+
+    summary += `\nBEST PRACTICES\n`;
+    if (learning.bestPractices?.length) {
+      learning.bestPractices.forEach((item) => {
+        summary += `• ${item}\n`;
       });
     }
-    summary += `\n`;
 
-    summary += `METHODOLOGY\n`;
-    summary += `• Knowledge Extraction: Analyzed ${knowledge.length} relevant data points from research sources\n`;
-    summary += `• Hypothesis Generation: Developed ${hypotheses.length} testable research questions\n`;
-    summary += `• Experimental Design: Created ${experiments.length} structured experiments with defined metrics\n`;
-    summary += `• Validation: Conducted ${validation.length} validation checks for research integrity\n\n`;
-
-    summary += `EXPERIMENTAL RESULTS\n`;
-    results.forEach((result, i) => {
-      summary += `Experiment ${result.experiment_id}: ${result.metric} = ${result.metric_value} `;
-      summary += `(Baseline: ${result.baseline}, Improvement: ${result.improvement})\n`;
-      summary += `Status: ${result.status} - ${result.log}\n\n`;
-    });
-
-    summary += `CONCLUSIONS\n`;
-    if (learning.bestPractices) {
-      summary += `Best Practices Identified:\n`;
-      learning.bestPractices.forEach((practice, i) => {
-        summary += `• ${practice}\n`;
+    summary += `\nNEXT STEPS\n`;
+    if (learning.nextSteps?.length) {
+      learning.nextSteps.forEach((item, i) => {
+        summary += `${i + 1}. ${item}\n`;
       });
     }
-    summary += `\n`;
 
-    summary += `FUTURE RESEARCH DIRECTIONS\n`;
-    if (learning.nextSteps) {
-      learning.nextSteps.forEach((step, i) => {
-        summary += `${i + 1}. ${step}\n`;
+    summary += `\nRISKS\n`;
+    if (learning.risks?.length) {
+      learning.risks.forEach((item) => {
+        summary += `• ${item}\n`;
       });
     }
-    summary += `\n`;
-
-    summary += `VALIDATION STATUS\n`;
-    const passedValidations = validation.filter(v => v.status === 'PASS').length;
-    summary += `${passedValidations}/${validation.length} validation checks passed\n`;
-    validation.forEach(v => {
-      summary += `• ${v.check}: ${v.status}\n`;
-    });
 
     return summary;
   }
 
-  // Download summary as PDF
   function downloadSummaryPDF() {
     try {
       const summary = generateResearchSummary();
       const pdf = new jsPDF();
 
-      // Set font and size
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(12);
 
-      // Add title
       pdf.setFontSize(16);
       pdf.setFont("helvetica", "bold");
       pdf.text(`Research Summary: ${research.topic}`, 15, 20);
@@ -256,13 +218,12 @@ export default function SearchResearch() {
       pdf.setFont("helvetica", "normal");
       pdf.text(`Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 15, 30);
 
-      // Split text into lines that fit the page
       const lines = pdf.splitTextToSize(summary, 180);
       let y = 45;
       let pageCount = 1;
 
       lines.forEach((line) => {
-        if (y > 270) { // New page if needed
+        if (y > 270) {
           pdf.addPage();
           pageCount++;
           pdf.setFontSize(10);
@@ -273,11 +234,11 @@ export default function SearchResearch() {
         y += 5;
       });
 
-      // Add research sources section
       if (y > 250) {
         pdf.addPage();
         y = 20;
       }
+
       y += 10;
       pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
@@ -294,10 +255,10 @@ export default function SearchResearch() {
         "• arXiv - Preprint papers",
         "• PubMed - Medical/scientific research",
         "• IEEE Xplore - Technical papers",
-        "• JSTOR - Academic journals"
+        "• JSTOR - Academic journals",
       ];
 
-      sources.forEach(source => {
+      sources.forEach((source) => {
         if (y > 270) {
           pdf.addPage();
           y = 20;
@@ -306,8 +267,7 @@ export default function SearchResearch() {
         y += 7;
       });
 
-      // Save the PDF
-      const filename = `${research.topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_research_summary.pdf`;
+      const filename = `${research.topic.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_research_summary.pdf`;
       pdf.save(filename);
 
       pushLog(`PDF downloaded: ${filename}`, "good");
@@ -329,7 +289,6 @@ export default function SearchResearch() {
       <div className="absolute inset-0 bg-black/50 pointer-events-none" />
 
       <div className="relative z-10">
-        {/* Header */}
         <div className="sticky top-0 z-30 bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-md border-b border-white/10">
           <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -364,11 +323,8 @@ export default function SearchResearch() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="max-w-7xl mx-auto px-5 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left - Search & Results */}
           <div className="lg:col-span-7 space-y-6">
-            {/* Search Card */}
             <Card title="Search Topic" right={<Pill tone={searching ? "info" : "neutral"}>{searching ? "Researching…" : "Ready"}</Pill>}>
               <div className="space-y-4">
                 <div>
@@ -404,11 +360,9 @@ export default function SearchResearch() {
               </div>
             </Card>
 
-            {/* Results Card */}
             {research.topic && (
-              <Card title={`Research: "${research.topic}"`} right={<Pill tone="info">7-Agent Cycle</Pill>}>
+              <Card title={`Research: "${research.topic}"`} right={<Pill tone="info">Topic Summary</Pill>}>
                 <div className="space-y-4">
-                  {/* Tabs */}
                   <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
                     {[
                       { id: "overview", label: "Overview" },
@@ -434,7 +388,6 @@ export default function SearchResearch() {
                     ))}
                   </div>
 
-                  {/* Tab Content */}
                   {activeTab === "overview" && (
                     <div className="space-y-6">
                       <div className="text-sm text-slate-600">
@@ -442,7 +395,6 @@ export default function SearchResearch() {
                         <p className="whitespace-pre-wrap">{research.final}</p>
                       </div>
 
-                      {/* PDF Download Button */}
                       {research.final && (
                         <div className="flex gap-3">
                           <button
@@ -461,67 +413,13 @@ export default function SearchResearch() {
                           </button>
                         </div>
                       )}
-
-                      {/* Research Sources & Further Reading */}
-                      {research.final && (
-                        <div>
-                          <h3 className="text-lg font-semibold text-slate-900 mb-3">📚 Where to Research More</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-blue-50 p-4 rounded-lg">
-                              <h4 className="font-semibold text-blue-900 mb-2">Academic & Research</h4>
-                              <ul className="space-y-1 text-sm text-blue-800">
-                                <li>• <a href={`https://scholar.google.com/scholar?q=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Google Scholar</a></li>
-                                <li>• <a href={`https://www.researchgate.net/search?q=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">ResearchGate</a></li>
-                                <li>• <a href={`https://arxiv.org/search/?query=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">arXiv (Preprints)</a></li>
-                                <li>• <a href={`https://ieeexplore.ieee.org/search/searchresult.jsp?queryText=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">IEEE Xplore</a></li>
-                              </ul>
-                            </div>
-
-                            <div className="bg-green-50 p-4 rounded-lg">
-                              <h4 className="font-semibold text-green-900 mb-2">News & Current Events</h4>
-                              <ul className="space-y-1 text-sm text-green-800">
-                                <li>• <a href={`https://www.bbc.com/search?q=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">BBC News</a></li>
-                                <li>• <a href={`https://www.reuters.com/search/?query=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Reuters</a></li>
-                                <li>• <a href={`https://www.theguardian.com/search?q=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">The Guardian</a></li>
-                                <li>• <a href={`https://news.google.com/search?q=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Google News</a></li>
-                              </ul>
-                            </div>
-
-                            <div className="bg-purple-50 p-4 rounded-lg">
-                              <h4 className="font-semibold text-purple-900 mb-2">General Knowledge</h4>
-                              <ul className="space-y-1 text-sm text-purple-800">
-                                <li>• <a href={`https://en.wikipedia.org/wiki/${encodeURIComponent(research.topic.replace(/\s+/g, '_'))}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Wikipedia</a></li>
-                                <li>• <a href={`https://www.britannica.com/search?query=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Encyclopedia Britannica</a></li>
-                                <li>• <a href={`https://www.khanacademy.org/search?page_search_query=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Khan Academy</a></li>
-                                <li>• <a href={`https://www.coursera.org/search?query=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Coursera</a></li>
-                              </ul>
-                            </div>
-
-                            <div className="bg-orange-50 p-4 rounded-lg">
-                              <h4 className="font-semibold text-orange-900 mb-2">Specialized Sources</h4>
-                              <ul className="space-y-1 text-sm text-orange-800">
-                                <li>• <a href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">PubMed (Medical)</a></li>
-                                <li>• <a href={`https://www.jstor.org/action/doBasicSearch?Query=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">JSTOR (Academic)</a></li>
-                                <li>• <a href={`https://www.semanticscholar.org/search?q=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Semantic Scholar</a></li>
-                                <li>• <a href={`https://www.academia.edu/search?q=${encodeURIComponent(research.topic)}`} target="_blank" rel="noopener noreferrer" className="hover:underline">Academia.edu</a></li>
-                              </ul>
-                            </div>
-                          </div>
-                          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p className="text-sm text-yellow-800">
-                              <strong>💡 Pro Tip:</strong> For comprehensive research, combine multiple sources. 
-                              Academic papers provide depth, news sources offer current events, and Wikipedia gives overview context.
-                            </p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
                   {activeTab === "knowledge" && (
                     <div className="space-y-3">
                       {!research.knowledge.length ? (
-                        <div className="text-sm text-slate-600">Run research to see knowledge insights.</div>
+                        <div className="text-sm text-slate-600">Knowledge extraction stage not connected yet.</div>
                       ) : (
                         research.knowledge.map((k, i) => (
                           <div key={i} className="rounded-2xl bg-sky-50 ring-1 ring-sky-100 p-4">
@@ -538,13 +436,15 @@ export default function SearchResearch() {
                   {activeTab === "hypotheses" && (
                     <div className="space-y-3">
                       {!research.hypotheses.length ? (
-                        <div className="text-sm text-slate-600">Run research to see hypotheses.</div>
+                        <div className="text-sm text-slate-600">Hypothesis stage not connected yet.</div>
                       ) : (
                         research.hypotheses.map((h) => (
                           <div key={h.id} className="rounded-2xl bg-white ring-1 ring-slate-200 p-4">
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <div className="text-sm font-semibold text-slate-900">{h.id}: {h.claim}</div>
+                                <div className="text-sm font-semibold text-slate-900">
+                                  {h.id}: {h.claim}
+                                </div>
                                 <div className="text-sm text-slate-700 mt-2">📊 {h.prediction}</div>
                               </div>
                               <Pill tone="info">Testable</Pill>
@@ -558,13 +458,15 @@ export default function SearchResearch() {
                   {activeTab === "experiments" && (
                     <div className="space-y-3">
                       {!research.experiments.length ? (
-                        <div className="text-sm text-slate-600">Run research to see experiments.</div>
+                        <div className="text-sm text-slate-600">Experiment stage not connected yet.</div>
                       ) : (
                         research.experiments.map((e) => (
                           <div key={e.id} className="rounded-2xl bg-white ring-1 ring-slate-200 p-4">
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1">
-                                <div className="text-sm font-semibold text-slate-900">{e.id} • {e.hypothesis}</div>
+                                <div className="text-sm font-semibold text-slate-900">
+                                  {e.id} • {e.hypothesis}
+                                </div>
                                 <div className="text-sm text-slate-700 mt-2">📋 Design: {e.design}</div>
                                 <div className="text-sm text-slate-700 mt-1">📈 Metric: {e.metric}</div>
                                 <div className="text-sm text-slate-700 mt-1">✓ Success: {e.success}</div>
@@ -580,7 +482,7 @@ export default function SearchResearch() {
                   {activeTab === "validation" && (
                     <div className="space-y-3">
                       {!research.validation.length ? (
-                        <div className="text-sm text-slate-600">Run research to see validation results.</div>
+                        <div className="text-sm text-slate-600">Validation stage not connected yet.</div>
                       ) : (
                         research.validation.map((v, i) => (
                           <div key={i} className="rounded-2xl bg-white ring-1 ring-slate-200 p-4 flex items-center justify-between">
@@ -610,6 +512,7 @@ export default function SearchResearch() {
                           </ul>
                         </div>
                       )}
+
                       {research.learning.bestPractices && (
                         <div>
                           <p className="font-semibold text-slate-900 mb-2 text-sm">Best Practices</p>
@@ -623,6 +526,7 @@ export default function SearchResearch() {
                           </ul>
                         </div>
                       )}
+
                       {research.learning.nextSteps && (
                         <div>
                           <p className="font-semibold text-slate-900 mb-2 text-sm">Next Steps</p>
@@ -636,6 +540,7 @@ export default function SearchResearch() {
                           </ul>
                         </div>
                       )}
+
                       {research.learning.risks && (
                         <div>
                           <p className="font-semibold text-slate-900 mb-2 text-sm">Potential Risks</p>
@@ -656,7 +561,6 @@ export default function SearchResearch() {
             )}
           </div>
 
-          {/* Right - Live Logs */}
           <div className="lg:col-span-5">
             <Card
               title="Live Research Log"
