@@ -14,7 +14,7 @@ import {
 export default function Footer() {
   const year = new Date().getFullYear();
 
-  // ✅ Change these once (easy)
+
   const CONTACT_EMAIL = "support@arslab.ai"; // put your email
   const LOCATION = "India"; // optional
   const GITHUB_URL = "https://github.com/your-org/your-repo"; // put your repo
@@ -164,7 +164,6 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bottom bar */}
         <div className="mt-10 pt-6 border-t border-zinc-200 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <div className="text-xs text-zinc-600">
             © {year} ARS Lab • Autonomous Research Agent. All rights reserved.

@@ -1,7 +1,7 @@
 import sqlite3
 import json
 
-# Check database
+
 conn = sqlite3.connect('ars-backend/docs.db')
 c = conn.cursor()
 c.execute("SELECT COUNT(*) FROM chunks")
