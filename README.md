@@ -120,6 +120,6 @@ npm run dev
 
 Frontend: React, TailwindCSS, Vite
 Backend: FastAPI, Python
-Agent System: LangGraph, LangChain, LLM APIs
+Agent System: LangGraph, LangChain, LLM APIs and working on traqining each model individually
 Infrastructure: Embeddings, Vector Search, Retrieval Pipelines
 deployed link for frontend:
