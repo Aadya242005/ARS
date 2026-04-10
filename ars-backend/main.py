@@ -27,9 +27,7 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 logger.info("Loaded OPENAI_API_KEY successfully")
 
-# -----------------------------
-# Database
-# -----------------------------
+
 DB_PATH = "docs.db"
 
 
