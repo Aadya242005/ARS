@@ -16,7 +16,6 @@ def run(state: AgentState) -> AgentState:
 
     goal = state.get("goal", "")
 
-    # Step 1: Try to retrieve relevant chunks from uploaded documents
     chunks = retrieve(goal, top_k=3)
     state.setdefault("logs", []).append({
         "ts": datetime.utcnow().isoformat(),
@@ -25,7 +24,7 @@ def run(state: AgentState) -> AgentState:
         "node": "knowledge",
     })
 
-    # Step 2: Perform comprehensive web research
+
     state.setdefault("logs", []).append({
         "ts": datetime.utcnow().isoformat(),
         "tone": "info",
@@ -38,7 +37,6 @@ def run(state: AgentState) -> AgentState:
     # Step 3: Build comprehensive context
     context_parts = []
 
-    # Add uploaded document chunks
     if chunks:
         doc_text = "\n---\n".join([
             f"[{c['doc_name']}]\n{c['text']}"
