@@ -3,7 +3,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# Load environment variables from .env file in the app directory
+
 env_path = Path(__file__).parent / ".env"
 load_dotenv(env_path)
 
