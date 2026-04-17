@@ -43,12 +43,12 @@ export default function Avatar3D() {
       <div className="h-[360px] sm:h-[420px] w-full rounded-2xl overflow-hidden bg-zinc-50">
         <ModelErrorBoundary>
           <Canvas camera={{ position: [0, 1.3, 3.2], fov: 45 }}>
-            {/* ✅ lights */}
+            {/* lights */}
             <ambientLight intensity={0.9} />
             <directionalLight position={[5, 5, 5]} intensity={1.4} />
             <directionalLight position={[-5, 3, 2]} intensity={0.8} />
 
-            {/* ✅ Suspense should be INSIDE Canvas */}
+            {/* Suspense should be inside Canvas */}
             <Suspense
               fallback={
                 <mesh>
