@@ -1,7 +1,8 @@
 # =====================================================
 # ARS Complete Startup Script
 # Starts all 3 services for real-time research
-# =====================================================
+# =====================================================   uvicorn--v push at origin file for main 
+
 
 Write-Host "🚀 Starting ARS System (All Services)" -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan

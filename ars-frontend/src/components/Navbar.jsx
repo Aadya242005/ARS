@@ -51,7 +51,7 @@ export default function Navbar() {
             <span className="hidden sm:inline text-sm">{enabled ? "Sound" : "Muted"}</span>
           </button>
 
-          {/* Normal button (no SoundButton component needed) */}
+          {/* Normal button (No Sound Button component needed) */}
           <button
             onClick={() => nav("/app")}
             className="hidden sm:inline-flex text-sm px-4 py-2 rounded-xl bg-white text-zinc-900 font-medium hover:bg-zinc-100 transition"
@@ -63,3 +63,8 @@ export default function Navbar() {
     </header>
   );
 }
+
+
+
+
+
