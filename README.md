@@ -1,125 +1,138 @@
-ARS – Agentic Research System
+<div align="center">
 
-ARS (Agentic Research System) is a full-stack AI platform that automates the research process using a multi-agent workflow.
-Instead of generating a single LLM response, ARS performs a structured research cycle that produces insights, hypotheses, experiment plans, and validated conclusions.
+# 🧠 ARS: Autonomous Research Scientist
+**An end-to-end multi-agent AI framework for automated scientific discovery and rigorous research workflows.**
 
-Research Workflow
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg?logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-B73BFE?logo=vite&logoColor=FFD62E)](https://vitejs.dev/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-AI-FF9900.svg)](https://langchain.com)
+[![Groq](https://img.shields.io/badge/Groq-Llama%203.3-f54e42.svg)](https://groq.com)
 
-ARS follows an Agentic Research Cycle:
+[Features](#-features) • [Architecture](#-architecture) • [Agent Workflow](#-the-7-agent-cycle) • [Quick Start](#-quick-start) • [Tech Stack](#-tech-stack)
 
-Topic / Documents
-      ↓
-Knowledge Extraction
-      ↓
-Hypothesis Generation
-      ↓
-Experiment Design
-      ↓
-Execution
-      ↓
-Analysis
-      ↓
-Validation
-      ↓
-Learning & Conclusions
+</div>
 
-This approach ensures outputs are structured, testable, and validated.
+---
 
-Agents in the System
+## 💡 Overview
 
-ARS uses 7 specialized agents to perform different research tasks.
+**ARS (Autonomous Research Scientist)** is a full-stack, highly scalable AI platform designed to automate the deeply rigorous process of academic and scientific research. 
 
-Knowledge Agent
-Extracts key insights, entities, patterns, and research signals from documents.
+Rather than generating a single-shot LLM response, ARS uses an advanced **multi-agent orchestration workflow**. It acts as a tireless team of researchers—extracting knowledge, proposing testable hypotheses, designing experiments, evaluating results, and synthesizing learnings in an autonomous loop.
 
-Hypothesis Agent
-Generates testable hypotheses and research assumptions.
+Perfect for researchers, data scientists, and organizations looking to scale their R&D efforts programmatically.
 
-Experiment Agent
-Designs experiments and defines evaluation metrics.
+---
 
-Execution Agent
-Runs experiments and produces results and logs.
+## ✨ Features
 
-Analysis Agent
-Interprets results and extracts meaningful observations.
+- 🤖 **7-Agent Orchestrated Workflow:** Specialized agents communicating dynamically to handle distinct phases of the scientific method.
+- 🌍 **Comprehensive Data Sourcing:** Autonomous web scraping, semantic document retrieval (RAG), and Wikipedia/ArXiv integration.
+- 📊 **Beautiful Real-Time Dashboard:** Monitor agents as they "think" in real-time, view generated insights, and track pipeline metrics.
+- 🛡️ **Self-Correcting & Validating:** Built-in validation agents ensure hypotheses are falsifiable and data isn't hallucinated.
+- ⚡ **Lightning Fast Inference:** Powered by Groq LPU inference using the state-of-the-art `Llama-3.3-70b-versatile` model.
 
-Validation Agent
-Performs checks such as reproducibility, robustness, and data leakage detection.
+---
 
-Learning Agent
-Summarizes conclusions and suggests next research steps.
+## 🧬 The 7-Agent Cycle
 
-System Architecture
+ARS follows a strict, state-managed Agentic Research Cycle driven by LangGraph. Each step is evaluated before passing to the next:
 
-ARS is built using a three-layer architecture.
+```mermaid
+graph TD
+    Start([🚀 Topic / Uploaded Documents]) -->|RAG / Web Search| K[📚 Knowledge Agent]
+    K -->|Extract & Synthesize| H[💡 Hypothesis Agent]
+    H -->|Generate Testable Claims| E[🧪 Experiment Agent]
+    E -->|Design Metrics| X[⚡ Execution Agent]
+    X -->|Run & Evaluate| A[📊 Analysis Agent]
+    A -->|Interpret Data| V[🛡️ Validation Agent]
+    V -->|Sanity Checks & Quality| L[🧠 Learning Agent]
+    L -->|Refine & Document| End([📋 Final Research Report])
+    
+    style Start fill:#1e1e2f,stroke:#4a4a8a,color:#fff,stroke-width:2px
+    style End fill:#1e1e2f,stroke:#4a4a8a,color:#fff,stroke-width:2px
+    style K fill:#3b82f6,stroke:#2563eb,color:#fff,stroke-width:2px
+    style H fill:#8b5cf6,stroke:#7c3aed,color:#fff,stroke-width:2px
+    style E fill:#ec4899,stroke:#db2777,color:#fff,stroke-width:2px
+    style X fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
+    style A fill:#10b981,stroke:#059669,color:#fff,stroke-width:2px
+    style V fill:#06b6d4,stroke:#0891b2,color:#fff,stroke-width:2px
+    style L fill:#6366f1,stroke:#4f46e5,color:#fff,stroke-width:2px
+```
 
-Agent Layer (LangGraph)
-Handles agent orchestration and research workflow execution.
+### 👥 Meet the Agents:
+1. **📚 Knowledge Agent**: Extracts key insights, constraints, and patterns from uploaded documents and autonomous web searches.
+2. **💡 Hypothesis Agent**: Synthesizes knowledge to generate specific, measurable, and falsifiable research hypotheses.
+3. **🧪 Experiment Agent**: Designs rigorous methodologies and evaluation metrics to test the hypotheses.
+4. **⚡ Execution Agent**: Simulates or executes the designed experiments to gather raw data.
+5. **📊 Analysis Agent**: Interprets the experiment outputs, finding patterns and statistical significance.
+6. **🛡️ Validation Agent**: Audits the pipeline for logical consistency, data leakage, and reproducibility.
+7. **🧠 Learning Agent**: Summarizes the entire cycle, flags risks, and dictates the focus for the *next iteration*.
 
-Backend (FastAPI)
-Responsible for APIs, document processing, embeddings, and retrieval pipelines.
+---
 
-Frontend (React Dashboard)
-Provides an interface for topic search, research visualization, and agent monitoring.
+## 🏗️ Architecture
 
-Project Structure
-ARS
-│
-├── ars-agents
-│   ├── agents
-│   ├── graphs
-│   ├── tools
-│   ├── schemas.py
-│   ├── state.py
-│   └── main.py
-│
-├── ars-backend
-│   ├── api
-│   ├── document_processing
-│   ├── embeddings
-│   └── main.py
-│
-├── ars-frontend
-│   ├── src
-│   │   ├── components
-│   │   ├── pages
-│   │   ├── assets
-│   │   └── App.jsx
-│   └── package.json
-│
-└── README.md
-Dashboard Features
+ARS is built on a robust, microservices-oriented, 3-tier architecture:
 
-Topic search to start research workflows
+| Layer | Technologies Used | Responsibility |
+|-------|-------------------|----------------|
+| **Frontend** | React, Vite, TailwindCSS | Real-time research visualization, topic inputs, and agent-state monitoring. |
+| **Backend** | FastAPI, SQLite, Custom TF-IDF | Handles document uploads, vector embedding search, and API routing. |
+| **Agent Core** | LangGraph, Python, Groq API | The orchestration layer managing the state machine and LLM multi-agent communication. |
 
-Structured research workspace
+---
 
-Agent execution timeline
+## 🚀 Quick Start
 
-Real-time logs and research outputs
-
-Hypotheses, experiments, and insights visualization
-
-Installation
-Clone Repository
-git clone <repo-url>
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Aadya242005/ARS.git
 cd ARS
-Run Agents
+```
+
+### 2. Set Environment Variables
+Add your Groq API Key (using xAI/Grok format config) to `ars-agents/app/.env`:
+```env
+XAI_API_KEY=your_groq_api_key_here
+BACKEND_URL=http://localhost:5050
+```
+
+### 3. Run the System
+You can start the entire stack using the provided PowerShell script:
+```powershell
+.\START_ALL.ps1
+```
+
+**Or start them individually:**
+```bash
+# 1. Start the Agents Service (Port 6060)
 cd ars-agents
-pip install -r requirements.txt
+pip install -r app/requirements.txt
 uvicorn app.main:app --reload --port 6060
-Run Backend
-cd ars-backend
+
+# 2. Start the Backend API (Port 5050)
+cd ../ars-backend
 pip install -r requirements.txt
 uvicorn main:app --reload --port 5050
-Run Frontend
-cd ars-frontend
+
+# 3. Start the Frontend Dashboard (Port 5173)
+cd ../ars-frontend
 npm install
 npm run dev
+```
 
-Frontend: React, TailwindCSS, Vite
-Backend: FastAPI, Python
-Agent System: LangGraph, LangChain, LLM APIs and working on traqining each model individually
-Infrastructure: Embeddings, Vector Search, Retrieval Pipelines
-deployed link for frontend:
+---
+
+## 🌟 Why ARS? (For Enterprises & R&D)
+
+In modern R&D, human bottlenecking during the literature review and hypothesis-generation phase is incredibly expensive. ARS solves this by turning passive LLMs into **active, goal-driven scientists**. 
+
+By enforcing rigorous validation checks and ensuring output is grounded in provided documents/web-data, ARS guarantees that hallucination is minimized, making it an enterprise-ready pipeline for intelligence gathering.
+
+---
+<div align="center">
+  <i>Built with ❤️ by Aadya242005</i>
+</div>
