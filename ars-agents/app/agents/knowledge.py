@@ -102,7 +102,7 @@ def run(state: AgentState) -> AgentState:
     # Step 4: Call OpenAI to analyze and extract key knowledge points
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",

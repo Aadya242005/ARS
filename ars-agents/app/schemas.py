@@ -4,10 +4,12 @@ from typing import Any, Dict, List, Optional
 class RunRequest(BaseModel):
     goal: str
     mode: str = "full"  # quick | full
+    domain: str = "AI"  # AI, Biology, Physics, Chemistry, Medicine, general
 
 class TopicResearchRequest(BaseModel):
     topic: str
     mode: str = "full"  # quick | full
+    domain: str = "AI"
 
 class RunResponse(BaseModel):
     run_id: str
@@ -46,3 +48,6 @@ class DocSummaryResponse(BaseModel):
     nextActions: List[str]
     questions: List[str]
     goalUsed: str
+
+class ReportRequest(BaseModel):
+    run_id: str

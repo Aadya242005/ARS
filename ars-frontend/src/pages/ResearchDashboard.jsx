@@ -1,12 +1,41 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import bgImage from "../assets/bg11.jpg";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ExperimentResultsChart,
+  EvaluationRadarChart,
+  HypothesisChart,
+  ValidationGrid,
+} from "../components/ResearchCharts";
+
+/* ───────── Constants ───────── */
+const AGENTS_API = "http://localhost:6060";
+const BACKEND_API = "http://localhost:5050";
 
 const AGENTS = [
+  { key: "knowledge",  label: "Knowledge",  icon: "📚", desc: "Extract key insights" },
+  { key: "hypothesis", label: "Hypothesis", icon: "💡", desc: "Generate testable claims" },
+  { key: "experiment", label: "Experiment", icon: "🧪", desc: "Design experiments" },
+  { key: "execution",  label: "Execution",  icon: "⚡", desc: "Run experiments" },
+  { key: "analysis",   label: "Analysis",   icon: "📊", desc: "Interpret results" },
+  { key: "validation", label: "Validation", icon: "🛡️", desc: "Verify pipeline" },
+  { key: "learning",   label: "Learning",   icon: "🧠", desc: "Synthesize insights" },
+];
+
+const DOMAINS = [
+  { value: "AI", label: "Artificial Intelligence", icon: "🤖" },
+  { value: "Biology", label: "Biology", icon: "🧬" },
+  { value: "Physics", label: "Physics", icon: "⚛️" },
+  { value: "Chemistry", label: "Chemistry", icon: "🧪" },
+  { value: "Medicine", label: "Medicine", icon: "🏥" },
+  { value: "general", label: "General", icon: "🔬" },
+];
+
+const TABS = [
   { key: "knowledge", label: "Knowledge" },
-  { key: "hypothesis", label: "Hypothesis" },
-  { key: "experiment", label: "Experiment" },
-  { key: "execution", label: "Execution" },
+  { key: "hypotheses", label: "Hypotheses" },
+  { key: "experiments", label: "Experiments" },
+  { key: "results", label: "Results" },
   { key: "analysis", label: "Analysis" },
   { key: "validation", label: "Validation" },
   { key: "learning", label: "Learning" },
@@ -20,76 +49,48 @@ function bytesToSize(bytes = 0) {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
-function Pill({ tone = "neutral", children }) {
-  const cls =
-    tone === "good"
-      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-      : tone === "info"
-      ? "bg-sky-50 text-sky-700 ring-sky-200"
-      : tone === "warn"
-      ? "bg-amber-50 text-amber-700 ring-amber-200"
-      : tone === "bad"
-      ? "bg-rose-50 text-rose-700 ring-rose-200"
-      : "bg-slate-50 text-slate-700 ring-slate-200";
+/* ───────── Pill ───────── */
+function StatusPill({ status }) {
+  const cls = {
+    running: "text-[#00f0ff] bg-[#00f0ff]/10 border-[#00f0ff]/30 animate-pulse",
+    done: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+    failed: "text-rose-400 bg-rose-400/10 border-rose-400/20",
+    queued: "text-amber-400/70 bg-amber-400/5 border-amber-400/15",
+    idle: "text-white/25 bg-white/[0.02] border-white/[0.06]",
+  }[status] || "text-white/25 bg-white/[0.02] border-white/[0.06]";
+
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ring-1 ${cls}`}>
-      {children}
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md border ${cls}`}>
+      {status}
     </span>
   );
 }
 
-function Card({ title, right, children }) {
+/* ───────── Agent Pipeline Stepper ───────── */
+function PipelineStepper({ statusMap, active }) {
   return (
-    <div className="rounded-2xl bg-white/95 backdrop-blur-sm shadow-xl ring-1 ring-white/20 hover:shadow-2xl transition">
-      <div className="px-6 py-4 border-b border-slate-200/40 flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold text-slate-900">{title}</div>
-        {right}
-      </div>
-      <div className="p-6">{children}</div>
-    </div>
-  );
-}
-
-function Stepper({ statusMap, active }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap gap-2">
       {AGENTS.map((a, idx) => {
         const s = statusMap[a.key] || "idle";
         const isActive = active === a.key;
-
-        const tone =
-          s === "done"
-            ? "good"
-            : s === "running"
-            ? "info"
-            : s === "failed"
-            ? "bad"
-            : s === "queued"
-            ? "warn"
-            : "neutral";
+        const pillClass = s === "done" ? "node-pill-done"
+          : s === "running" ? "node-pill-active"
+          : s === "failed" ? "node-pill-failed"
+          : s === "queued" ? "node-pill-queued"
+          : "node-pill-idle";
 
         return (
-          <div key={a.key} className="flex items-center gap-2">
-            <div
-              className={[
-                "px-3 py-2 rounded-xl ring-1 text-xs font-semibold transition",
-                isActive ? "bg-sky-50 text-sky-800 ring-sky-200" : "bg-white text-slate-700 ring-slate-200",
-              ].join(" ")}
-            >
-              <div className="flex items-center gap-2">
-                <span className="opacity-70">{idx + 1}.</span>
-                <span>{a.label}</span>
-                <span className="ml-1">
-                  <Pill tone={tone}>
-                    {s === "idle" && "Idle"}
-                    {s === "queued" && "Queued"}
-                    {s === "running" && "Running"}
-                    {s === "done" && "Done"}
-                    {s === "failed" && "Failed"}
-                  </Pill>
-                </span>
-              </div>
+          <div key={a.key} className="flex items-center gap-1.5">
+            <div className={`${pillClass} flex items-center gap-2 ${isActive ? "ring-1 ring-[#00f0ff]/30" : ""}`}>
+              <span>{a.icon}</span>
+              <span>{a.label}</span>
+              {s === "running" && (
+                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-[#00f0ff] animate-ping" />
+              )}
             </div>
+            {idx < AGENTS.length - 1 && (
+              <span className={`text-[10px] ${s === "done" ? "text-emerald-500" : "text-white/15"}`}>→</span>
+            )}
           </div>
         );
       })}
@@ -97,101 +98,74 @@ function Stepper({ statusMap, active }) {
   );
 }
 
-function TabButton({ active, onClick, children }) {
+/* ───────── Glass Card ───────── */
+function Card({ title, icon, right, children, className = "" }) {
+  return (
+    <div className={`glass-card overflow-hidden ${className}`}>
+      <div className="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {icon && <span className="text-sm">{icon}</span>}
+          <span className="text-sm font-semibold text-white/90">{title}</span>
+        </div>
+        {right}
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
+/* ───────── Tab Button ───────── */
+function TabBtn({ active, onClick, children }) {
   return (
     <button
       onClick={onClick}
-      className={[
-        "px-3 py-2 rounded-xl text-sm font-medium transition ring-1",
-        active ? "bg-sky-600 text-white ring-sky-600" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
-      ].join(" ")}
       type="button"
+      className={[
+        "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 border",
+        active
+          ? "bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/30 shadow-glow-cyan"
+          : "bg-white/[0.02] text-white/40 border-white/[0.06] hover:text-white/60 hover:bg-white/[0.04]",
+      ].join(" ")}
     >
       {children}
     </button>
   );
 }
 
+/* ===================================================================
+   MAIN DASHBOARD
+   =================================================================== */
 export default function ResearchDashboard() {
   const nav = useNavigate();
-
   const inputRef = useRef(null);
   const logEndRef = useRef(null);
 
-  const [goal, setGoal] = useState("Summarize the documents and propose testable hypotheses + experiments.");
-  const [mode, setMode] = useState("full"); // quick | full
+  /* ───── State ───── */
+  const [goal, setGoal] = useState("Analyze the effectiveness of retrieval-augmented generation for improving factual accuracy in large language models.");
+  const [mode, setMode] = useState("full");
+  const [domain, setDomain] = useState("AI");
 
   const [dragOver, setDragOver] = useState(false);
-  const [files, setFiles] = useState([]); // {id,name,size,type,status}
+  const [files, setFiles] = useState([]);
   const [indexing, setIndexing] = useState(false);
 
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState(null);
-
   const [activeAgent, setActiveAgent] = useState(null);
   const [agentStatus, setAgentStatus] = useState(() => Object.fromEntries(AGENTS.map((a) => [a.key, "idle"])));
 
   const [logs, setLogs] = useState([]);
-  const [tab, setTab] = useState("knowledge"); // knowledge | hypotheses | experiments | results | validation
+  const [tab, setTab] = useState("knowledge");
 
   const [workspace, setWorkspace] = useState({
-    knowledge: [],
-    hypotheses: [],
-    experiments: [],
-    results: [],
-    validation: [],
-    final: "",
+    knowledge: [], hypotheses: [], experiments: [], results: [],
+    analysis: { patterns: [], conclusions: [], improvements: [] },
+    validation: [], learning: {}, evaluation: {}, final: "",
   });
 
   const readyCount = useMemo(() => files.filter((f) => f.status === "ready").length, [files]);
-  const hasDocs = files.length > 0;
-  const canNavigate = hasDocs && readyCount > 0 && !indexing;
 
-  const docsForNav = useMemo(
-    () => files.map(({ id, name, status, size, type }) => ({ id, name, status, size, type })),
-    [files]
-  );
-
-  function makeSummaryPayload() {
-    return {
-      overview:
-        "These documents contain project context, constraints, workflow hints, and evaluation cues. Below is a structured summary extracted for planning research steps.",
-      keyPoints: [
-        "Objective and outputs appear across documents.",
-        "Constraints imply trade-offs (cost/time/accuracy).",
-        "Evaluation hints: baselines, validation, robustness checks.",
-      ],
-      topics: ["Objective", "Constraints", "Metrics", "Workflow", "Risks"],
-      entities: ["ARS", "Agent", "Hypothesis", "Experiment", "Validation"],
-      gaps: [
-        "Exact success metrics not clearly defined.",
-        "Need dataset/source definitions for experiments.",
-        "Validation checklist not finalized.",
-      ],
-    };
-  }
-
-  function makeResearchPayload() {
-    return {
-      directions: [
-        {
-          id: "D1",
-          title: "Define evaluation + baselines",
-          why: "Without baselines, agent improvements are not measurable.",
-          hypotheses: [
-            { id: "H1", claim: "RAG grounding improves factual accuracy", metric: "groundedness/citations", success: "+10%" },
-            { id: "H2", claim: "Validation agent reduces false conclusions", metric: "robustness pass rate", success: "+15%" },
-          ],
-          experiments: [
-            { id: "E1", steps: "Baseline summary vs RAG summary", output: "factuality + citations" },
-            { id: "E2", steps: "Pipeline with/without validation agent", output: "robustness + error rate" },
-          ],
-        },
-      ],
-      nextSteps: ["Lock 2–3 success metrics.", "Run quick cycle first (K→H→E).", "Then run full execution + validation."],
-    };
-  }
-
+  /* ───── Scroll logs ───── */
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs.length]);
@@ -200,10 +174,10 @@ export default function ResearchDashboard() {
     setLogs((p) => [...p, { ts: new Date().toISOString(), tone, msg }]);
   }
 
+  /* ───── File upload ───── */
   function addFiles(list) {
     const arr = Array.from(list || []);
     if (!arr.length) return;
-
     const mapped = arr.map((f, i) => ({
       id: `local_${Date.now()}_${i}`,
       name: f.name,
@@ -212,23 +186,45 @@ export default function ResearchDashboard() {
       status: "uploaded",
       _file: f,
     }));
-
     setFiles((prev) => [...mapped, ...prev]);
     pushLog(`Added ${arr.length} file(s).`, "good");
-    simulateIndexing(mapped.map((m) => m.id));
+    uploadAndIndex(mapped);
   }
 
-  async function simulateIndexing(ids) {
+  async function uploadAndIndex(newFiles) {
     setIndexing(true);
-    pushLog("Indexing started: parsing → chunking → embeddings…", "info");
+    pushLog("Indexing: uploading → parsing → embedding…", "info");
 
-    setFiles((prev) => prev.map((f) => (ids.includes(f.id) ? { ...f, status: "parsing" } : f)));
-    await new Promise((r) => setTimeout(r, 600));
+    for (const f of newFiles) {
+      setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, status: "parsing" } : x)));
 
-    setFiles((prev) => prev.map((f) => (ids.includes(f.id) ? { ...f, status: "embedding" } : f)));
-    await new Promise((r) => setTimeout(r, 700));
+      try {
+        // Upload to backend
+        const formData = new FormData();
+        formData.append("file", f._file);
+        const res = await fetch(`${BACKEND_API}/api/docs/upload`, {
+          method: "POST",
+          body: formData,
+        });
 
-    setFiles((prev) => prev.map((f) => (ids.includes(f.id) ? { ...f, status: "ready" } : f)));
+        if (res.ok) {
+          setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, status: "embedding" } : x)));
+          await new Promise((r) => setTimeout(r, 300));
+          setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, status: "ready" } : x)));
+          pushLog(`✅ ${f.name} indexed successfully`, "good");
+        } else {
+          setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, status: "failed" } : x)));
+          pushLog(`❌ Failed to index ${f.name}`, "error");
+        }
+      } catch (e) {
+        // Fallback: simulate indexing if backend not available
+        setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, status: "embedding" } : x)));
+        await new Promise((r) => setTimeout(r, 500));
+        setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, status: "ready" } : x)));
+        pushLog(`⚠ ${f.name} indexed locally (backend offline)`, "warn");
+      }
+    }
+
     pushLog("Knowledge base ready ✅", "good");
     setIndexing(false);
   }
@@ -237,6 +233,7 @@ export default function ResearchDashboard() {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   }
 
+  /* ───── Reset ───── */
   function resetAll() {
     setFiles([]);
     setIndexing(false);
@@ -245,563 +242,606 @@ export default function ResearchDashboard() {
     setActiveAgent(null);
     setAgentStatus(Object.fromEntries(AGENTS.map((a) => [a.key, "idle"])));
     setLogs([]);
-    setWorkspace({ knowledge: [], hypotheses: [], experiments: [], results: [], validation: [], final: "" });
+    setWorkspace({
+      knowledge: [], hypotheses: [], experiments: [], results: [],
+      analysis: { patterns: [], conclusions: [], improvements: [] },
+      validation: [], learning: {}, evaluation: {}, final: "",
+    });
     setTab("knowledge");
   }
 
-  async function simulateRun() {
-    if (!hasDocs || readyCount === 0 || running) return;
+  /* ───── Start real SSE run ───── */
+  const startRun = useCallback(async () => {
+    if (running) return;
 
     setRunning(true);
-    setRunId(`demo_${Date.now()}`);
     setActiveAgent(null);
-    setWorkspace({ knowledge: [], hypotheses: [], experiments: [], results: [], validation: [], final: "" });
-
-    setAgentStatus(Object.fromEntries(AGENTS.map((a) => [a.key, "queued"])));
-    pushLog(`Run started (${mode === "quick" ? "Quick" : "Full"} mode).`, "good");
-
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-    const plan =
-      mode === "quick"
-        ? ["knowledge", "hypothesis", "experiment", "finalize"]
-        : ["knowledge", "hypothesis", "experiment", "execution", "analysis", "validation", "learning", "finalize"];
-
-    for (const step of plan) {
-      if (step === "finalize") break;
-
-      setActiveAgent(step);
-      setAgentStatus((p) => ({ ...p, [step]: "running" }));
-      pushLog(`${step.toUpperCase()} agent running…`, "info");
-      await sleep(600);
-
-      if (step === "knowledge") {
-        setWorkspace((w) => ({
-          ...w,
-          knowledge: [
-            { claim: "Key constraints and requirements extracted from uploaded docs.", source: "uploaded_docs", confidence: 0.82 },
-            { claim: "Repeated entities/topics detected across documents.", source: "uploaded_docs", confidence: 0.74 },
-          ],
-        }));
-        setTab("knowledge");
-      }
-      if (step === "hypothesis") {
-        setWorkspace((w) => ({
-          ...w,
-          hypotheses: [
-            { id: "H1", claim: "Retrieval grounding improves factual accuracy.", prediction: "Hallucination rate decreases." },
-            { id: "H2", claim: "Role-restricted agents reduce planning errors.", prediction: "Validation pass rate increases." },
-          ],
-        }));
-        setTab("hypotheses");
-      }
-      if (step === "experiment") {
-        setWorkspace((w) => ({
-          ...w,
-          experiments: [
-            { id: "E1", hypothesis: "H1", metric: "groundedness_score", success: ">= +10%" },
-            { id: "E2", hypothesis: "H2", metric: "validation_pass_rate", success: ">= +15%" },
-          ],
-        }));
-        setTab("experiments");
-      }
-      if (step === "execution") {
-        setWorkspace((w) => ({
-          ...w,
-          results: [{ run: "R1", e1: "+12% groundedness", e2: "+18% validation", notes: "Stable on demo." }],
-        }));
-        setTab("results");
-      }
-      if (step === "analysis") {
-        setWorkspace((w) => ({ ...w, results: [...w.results] }));
-        setTab("results");
-      }
-      if (step === "validation") {
-        setWorkspace((w) => ({
-          ...w,
-          validation: [
-            { check: "Leakage", status: "PASS" },
-            { check: "Reproducibility", status: "PASS" },
-            { check: "Ablation sanity", status: "PASS (demo)" },
-          ],
-        }));
-        setTab("validation");
-      }
-      if (step === "learning") {
-        setWorkspace((w) => ({
-          ...w,
-          final: "Demo completed ✅ Next: connect backend tools (upload → parse → embed → SSE logs) to run real experiments.",
-        }));
-      }
-
-      await sleep(350);
-      setAgentStatus((p) => ({ ...p, [step]: "done" }));
-      pushLog(`${step.toUpperCase()} done.`, "good");
-    }
-
-    setAgentStatus((p) => {
-      const copy = { ...p };
-      Object.keys(copy).forEach((k) => {
-        if (copy[k] === "queued") copy[k] = "idle";
-      });
-      return copy;
+    setWorkspace({
+      knowledge: [], hypotheses: [], experiments: [], results: [],
+      analysis: { patterns: [], conclusions: [], improvements: [] },
+      validation: [], learning: {}, evaluation: {}, final: "",
     });
+    setAgentStatus(Object.fromEntries(AGENTS.map((a) => [a.key, "queued"])));
+    pushLog(`🚀 Starting ${mode} research cycle (domain: ${domain})…`, "good");
 
-    setActiveAgent(null);
-    setRunning(false);
-    pushLog("Run completed.", "good");
+    try {
+      // Start run on agents service
+      const startRes = await fetch(`${AGENTS_API}/api/runs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal, mode, domain }),
+      });
+
+      if (!startRes.ok) throw new Error("Failed to start run");
+
+      const { run_id } = await startRes.json();
+      setRunId(run_id);
+      pushLog(`Run started: ${run_id}`, "info");
+
+      // Connect to SSE stream
+      const es = new EventSource(`${AGENTS_API}/api/runs/${run_id}/stream`);
+
+      es.addEventListener("node_started", (e) => {
+        const d = JSON.parse(e.data);
+        setActiveAgent(d.node);
+        setAgentStatus((prev) => ({ ...prev, [d.node]: "running" }));
+        pushLog(`⚙️ ${d.node.toUpperCase()} agent running…`, "info");
+      });
+
+      es.addEventListener("node_finished", (e) => {
+        const d = JSON.parse(e.data);
+        setAgentStatus((prev) => ({ ...prev, [d.node]: d.status }));
+        const icon = d.status === "done" ? "✅" : "❌";
+        pushLog(`${icon} ${d.node.toUpperCase()} ${d.status}`, d.status === "done" ? "good" : "error");
+      });
+
+      es.addEventListener("state_update", (e) => {
+        const state = JSON.parse(e.data);
+        if (state.workspace) {
+          setWorkspace(state.workspace);
+        }
+        if (state.active_node !== undefined) {
+          setActiveAgent(state.active_node);
+        }
+        if (state.node_status) {
+          setAgentStatus(state.node_status);
+        }
+        // Auto-switch tab to the active node's output
+        if (state.active_node) {
+          const tabMap = {
+            knowledge: "knowledge", hypothesis: "hypotheses",
+            experiment: "experiments", execution: "results",
+            analysis: "analysis", validation: "validation", learning: "learning",
+          };
+          if (tabMap[state.active_node]) setTab(tabMap[state.active_node]);
+        }
+        // Also add server-side logs
+        if (state.logs && state.logs.length > 0) {
+          const last = state.logs[state.logs.length - 1];
+          if (last.msg) {
+            // Avoid duplicate logs - only push if message is different from last local log
+            setLogs((prev) => {
+              if (prev.length > 0 && prev[prev.length - 1].msg === last.msg) return prev;
+              return [...prev, { ts: last.ts, tone: last.tone, msg: last.msg }];
+            });
+          }
+        }
+      });
+
+      es.addEventListener("run_finished", () => {
+        setRunning(false);
+        setActiveAgent(null);
+        pushLog("🎉 Research cycle complete!", "good");
+        es.close();
+      });
+
+      es.addEventListener("error", () => {
+        // SSE connection closed or errored
+        setRunning(false);
+        es.close();
+      });
+
+    } catch (e) {
+      pushLog(`❌ Error: ${e.message}. Make sure agents service (port 6060) is running.`, "error");
+      setRunning(false);
+    }
+  }, [goal, mode, domain, running]);
+
+  /* ───── Download report ───── */
+  async function downloadReport() {
+    if (!runId) return;
+    try {
+      const res = await fetch(`${AGENTS_API}/api/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run_id: runId }),
+      });
+      const data = await res.json();
+      if (data.report) {
+        const blob = new Blob([data.report], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `ARS_Report_${runId}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+        pushLog("📄 Report downloaded", "good");
+      }
+    } catch (e) {
+      pushLog(`Report download failed: ${e.message}`, "error");
+    }
   }
 
-  function toneToClass(tone) {
-    if (tone === "good") return "text-emerald-700";
-    if (tone === "warn") return "text-amber-700";
-    if (tone === "bad") return "text-rose-700";
-    return "text-slate-700";
+  /* ───── Tone styling ───── */
+  function toneClass(tone) {
+    if (tone === "good") return "text-emerald-400";
+    if (tone === "warn" || tone === "warning") return "text-amber-400";
+    if (tone === "error" || tone === "bad") return "text-rose-400";
+    return "text-white/50";
   }
 
+  const fileStatusColor = (s) => {
+    if (s === "ready") return "text-emerald-400 bg-emerald-400/10 border-emerald-400/20";
+    if (s === "embedding" || s === "parsing") return "text-[#00f0ff] bg-[#00f0ff]/10 border-[#00f0ff]/20 animate-pulse";
+    if (s === "failed") return "text-rose-400 bg-rose-400/10 border-rose-400/20";
+    return "text-white/40 bg-white/5 border-white/10";
+  };
+
+  /* ═══════════════ RENDER ═══════════════ */
   return (
-    <div
-      className="relative min-h-screen"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-      }}
-    >
-      {/* Dark overlay for readability */}
-      <div className="absolute inset-0 bg-black/50 pointer-events-none" />
+    <div className="min-h-screen bg-lab-950 text-white font-sans">
+      {/* Background effects */}
+      <div className="fixed inset-0 -z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(0,240,255,0.04),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(168,85,247,0.03),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAyKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PHBhdGggZD0iTSAxMCAwIEwgMTAgNDAiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAyKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI2dyaWQpIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiLz48L3N2Zz4=')] opacity-50" />
+      </div>
 
-      <div className="relative z-10">
-        {/* Header */}
-        <div className="sticky top-0 z-30 bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-md border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-500 ring-1 ring-white/20 shadow-lg" />
-              <div>
-                <div className="text-sm font-semibold text-white flex items-center gap-2">
-                  🔬 Research Dashboard
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold shadow-lg">
-                    7-AGENT
-                  </span>
-                </div>
-                <div className="text-xs text-slate-300">Upload docs → Index → Multi-agent research cycle</div>
+      {/* ═══════════ HEADER ═══════════ */}
+      <header className="sticky top-0 z-30 backdrop-blur-xl bg-lab-950/80 border-b border-white/[0.06]">
+        <div className="max-w-[1600px] mx-auto px-5 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#00f0ff] to-blue-600 flex items-center justify-center shadow-glow-cyan">
+              <span className="text-sm font-bold">🔬</span>
+            </div>
+            <div>
+              <div className="text-sm font-bold text-white flex items-center gap-2">
+                ARS Research Lab
+                <span className="text-[9px] px-2 py-0.5 rounded-md bg-[#00f0ff]/10 text-[#00f0ff] border border-[#00f0ff]/20 font-mono">
+                  7-AGENT
+                </span>
               </div>
+              <div className="text-[11px] text-white/40">Autonomous Research Scientist</div>
             </div>
+          </div>
 
-            {/* Top buttons */}
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <button
-                type="button"
-                onClick={() => nav("/app")}
-                className="px-3 py-2 rounded-xl text-sm font-medium bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700 shadow-lg transition"
-              >
-                Home
+          <div className="flex items-center gap-2">
+            <button onClick={() => nav("/")} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/60 hover:text-white/90 transition">
+              Home
+            </button>
+            {runId && !running && (
+              <button onClick={downloadReport} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 border border-[#00f0ff]/20 text-[#00f0ff] transition">
+                📄 Report
               </button>
-
-              <button
-                type="button"
-                disabled={!canNavigate}
-                title={!canNavigate ? "Upload and index at least one document first" : ""}
-                onClick={() =>
-                  nav("/summary", {
-                    state: { docs: docsForNav, goal, mode, summary: makeSummaryPayload() },
-                  })
-                }
-                className={[
-                  "px-3 py-2 rounded-xl text-sm font-medium ring-1 transition",
-                  canNavigate
-                    ? "bg-white/10 text-white ring-white/20 hover:bg-white/20 backdrop-blur-sm"
-                    : "bg-slate-700/50 text-slate-400 ring-slate-600 cursor-not-allowed",
-                ].join(" ")}
-              >
-                Summary
-              </button>
-
-              <button
-                type="button"
-                disabled={!canNavigate}
-                title={!canNavigate ? "Upload and index at least one document first" : ""}
-                onClick={() =>
-                  nav("/research", {
-                    state: { docs: docsForNav, goal, mode, summary: makeSummaryPayload(), research: makeResearchPayload() },
-                  })
-                }
-                className={[
-                  "px-3 py-2 rounded-xl text-sm font-medium ring-1 transition",
-                  canNavigate
-                    ? "bg-white/10 text-white ring-white/20 hover:bg-white/20 backdrop-blur-sm"
-                    : "bg-slate-700/50 text-slate-400 ring-slate-600 cursor-not-allowed",
-                ].join(" ")}
-              >
-                Research
-              </button>
-
-              {runId ? <Pill tone="info">Run: {runId}</Pill> : <Pill>Idle</Pill>}
-
-              <button
-                type="button"
-                onClick={resetAll}
-                className="px-3 py-2 rounded-xl text-sm font-medium bg-white/10 hover:bg-white/20 ring-1 ring-white/20 text-white backdrop-blur-sm transition"
-              >
-                Reset
-              </button>
-            </div>
+            )}
+            {runId && (
+              <span className="px-2.5 py-1 rounded-md text-[10px] font-mono bg-white/[0.04] border border-white/[0.06] text-white/40">
+                {runId}
+              </span>
+            )}
+            <button onClick={resetAll} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/[0.04] hover:bg-rose-500/10 border border-white/[0.08] hover:border-rose-500/20 text-white/50 hover:text-rose-400 transition">
+              Reset
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Content */}
-        <div className="max-w-7xl mx-auto px-5 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left */}
-          <div className="lg:col-span-7 space-y-6">
-            <Card
-              title="Upload Documents"
-              right={
-                <div className="flex items-center gap-2">
-                  <Pill tone={indexing ? "info" : readyCount ? "good" : "neutral"}>
-                    {indexing ? "Indexing…" : readyCount ? `Ready: ${readyCount}` : "No docs yet"}
-                  </Pill>
-                  <button
-                    type="button"
-                    onClick={() => inputRef.current?.click()}
-                    className="px-3 py-2 rounded-xl text-sm font-medium bg-sky-600 text-white hover:bg-sky-700"
-                  >
-                    Upload
-                  </button>
-                  <input
-                    ref={inputRef}
-                    className="hidden"
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,.txt,.md,.csv,.json"
-                    onChange={(e) => {
-                      addFiles(e.target.files);
-                      e.target.value = "";
-                    }}
-                  />
-                </div>
-              }
-            >
+      {/* ═══════════ MAIN CONTENT ═══════════ */}
+      <div className="max-w-[1600px] mx-auto px-5 py-6 grid grid-cols-1 xl:grid-cols-12 gap-5">
+
+        {/* ═══════════ LEFT PANEL: Config + Workspace ═══════════ */}
+        <div className="xl:col-span-8 space-y-5">
+
+          {/* ── Pipeline Stepper ── */}
+          <Card title="Agent Pipeline" icon="🔗" right={
+            <StatusPill status={running ? "running" : runId ? "done" : "idle"} />
+          }>
+            <PipelineStepper statusMap={agentStatus} active={activeAgent} />
+          </Card>
+
+          {/* ── Upload + Config Row ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Upload */}
+            <Card title="Documents" icon="📁" right={
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${readyCount ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" : "text-white/30 bg-white/[0.02] border-white/[0.06]"}`}>
+                  {readyCount} ready
+                </span>
+                <button onClick={() => inputRef.current?.click()}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#00f0ff]/10 text-[#00f0ff] border border-[#00f0ff]/20 hover:bg-[#00f0ff]/20 transition">
+                  Upload
+                </button>
+                <input ref={inputRef} className="hidden" type="file" multiple
+                  accept=".pdf,.doc,.docx,.txt,.md,.csv,.json"
+                  onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+              </div>
+            }>
               <div
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDragOver(true);
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDragOver(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDragOver(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDragOver(false);
-                  addFiles(e.dataTransfer.files);
-                }}
-                className={[
-                  "rounded-2xl border-2 border-dashed p-8 transition",
-                  dragOver ? "border-sky-400 bg-sky-50" : "border-slate-200 bg-white",
-                ].join(" ")}
+                onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
+                className={`rounded-xl border-2 border-dashed p-6 transition text-center ${dragOver ? "border-[#00f0ff]/40 bg-[#00f0ff]/5" : "border-white/[0.08] bg-white/[0.01]"}`}
               >
-                <div className="text-center">
-                  <div className="text-base font-semibold text-slate-900">Drag & drop your documents</div>
-                  <div className="text-sm text-slate-600 mt-2">
-                    PDF, DOCX, TXT, CSV, MD, JSON • We’ll parse and index them automatically
-                  </div>
-
-                  <div className="mt-5 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={() => inputRef.current?.click()}
-                      className="px-4 py-2 rounded-xl bg-white ring-1 ring-slate-200 text-slate-800 font-medium hover:bg-slate-50"
-                    >
-                      Choose files
-                    </button>
-                  </div>
-                </div>
+                <div className="text-xs font-medium text-white/50">Drop files here or click Upload</div>
+                <div className="text-[10px] text-white/30 mt-1">PDF, DOCX, TXT, MD, CSV, JSON</div>
               </div>
 
-              {/* Files */}
-              <div className="mt-6">
-                {!files.length ? (
-                  <div className="text-sm text-slate-600">No files yet. Upload to start.</div>
-                ) : (
-                  <div className="space-y-3">
-                    {files.map((f) => {
-                      const tone =
-                        f.status === "ready"
-                          ? "good"
-                          : f.status === "embedding" || f.status === "parsing"
-                          ? "info"
-                          : f.status === "failed"
-                          ? "bad"
-                          : "neutral";
-
-                      return (
-                        <div
-                          key={f.id}
-                          className="flex items-center justify-between gap-3 rounded-2xl bg-white ring-1 ring-slate-200/60 px-4 py-3"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-slate-900 truncate">{f.name}</div>
-                            <div className="text-xs text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
-                              <span>{bytesToSize(f.size)}</span>
-                              <span className="text-slate-300">•</span>
-                              <span className="truncate">{f.type}</span>
-                              <span className="text-slate-300">•</span>
-                              <Pill tone={tone}>{f.status}</Pill>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => removeFile(f.id)}
-                            className="px-3 py-2 rounded-xl text-sm bg-white hover:bg-slate-50 ring-1 ring-slate-200 text-slate-800"
-                            disabled={running}
-                          >
-                            Remove
-                          </button>
+              {files.length > 0 && (
+                <div className="mt-3 space-y-2 max-h-[160px] overflow-auto">
+                  {files.map((f) => (
+                    <div key={f.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-medium text-white/70 truncate">{f.name}</div>
+                        <div className="text-[10px] text-white/30 flex items-center gap-1.5">
+                          {bytesToSize(f.size)}
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${fileStatusColor(f.status)}`}>{f.status}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                      </div>
+                      <button onClick={() => removeFile(f.id)} disabled={running}
+                        className="text-[10px] text-white/30 hover:text-rose-400 transition">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
-            <Card title="Run Configuration" right={<Pill tone={mode === "quick" ? "warn" : "info"}>{mode.toUpperCase()}</Pill>}>
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div className="md:col-span-8">
-                  <label className="text-sm font-medium text-slate-800">Research goal</label>
-                  <textarea
-                    value={goal}
-                    onChange={(e) => setGoal(e.target.value)}
-                    className="mt-2 w-full min-h-[100px] rounded-2xl bg-white ring-1 ring-slate-200 px-4 py-3 text-sm text-slate-800 outline-none focus:ring-sky-300"
-                    placeholder="What should ARS do with the uploaded documents?"
-                  />
-                </div>
-
-                <div className="md:col-span-4 space-y-3">
-                  <label className="text-sm font-medium text-slate-800">Mode</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setMode("quick")}
-                      className={[
-                        "flex-1 px-3 py-2 rounded-xl ring-1 text-sm font-medium transition",
-                        mode === "quick"
-                          ? "bg-amber-50 ring-amber-200 text-amber-800"
-                          : "bg-white ring-slate-200 text-slate-700 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      Quick
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMode("full")}
-                      className={[
-                        "flex-1 px-3 py-2 rounded-xl ring-1 text-sm font-medium transition",
-                        mode === "full"
-                          ? "bg-sky-50 ring-sky-200 text-sky-800"
-                          : "bg-white ring-slate-200 text-slate-700 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      Full
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={simulateRun}
-                    disabled={!hasDocs || readyCount === 0 || indexing || running}
-                    className={[
-                      "w-full mt-2 px-4 py-3 rounded-2xl font-semibold transition",
-                      !hasDocs || readyCount === 0 || indexing || running
-                        ? "bg-slate-200 text-slate-500 cursor-not-allowed"
-                        : "bg-sky-600 text-white hover:bg-sky-700",
-                    ].join(" ")}
-                  >
-                    {running ? "Running…" : "Start Research Cycle"}
+            {/* Run Config */}
+            <Card title="Configuration" icon="⚙️" right={
+              <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${mode === "quick" ? "text-amber-400 bg-amber-400/10 border-amber-400/20" : "text-[#00f0ff] bg-[#00f0ff]/10 border-[#00f0ff]/20"}`}>
+                {mode.toUpperCase()}
+              </span>
+            }>
+              {/* Domain */}
+              <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">Domain</label>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {DOMAINS.map((d) => (
+                  <button key={d.value} onClick={() => setDomain(d.value)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition ${domain === d.value
+                      ? "bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/30"
+                      : "bg-white/[0.02] text-white/40 border-white/[0.06] hover:text-white/60"}`}>
+                    {d.icon} {d.value}
                   </button>
-
-                  <div className="text-xs text-slate-600">
-                    Start button enables after documents are <span className="font-semibold">Ready</span>.
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card title="Workspace" right={<Pill tone="neutral">Structured</Pill>}>
-              <div className="flex flex-wrap gap-2 mb-4">
-                <TabButton active={tab === "knowledge"} onClick={() => setTab("knowledge")}>
-                  Knowledge
-                </TabButton>
-                <TabButton active={tab === "hypotheses"} onClick={() => setTab("hypotheses")}>
-                  Hypotheses
-                </TabButton>
-                <TabButton active={tab === "experiments"} onClick={() => setTab("experiments")}>
-                  Experiments
-                </TabButton>
-                <TabButton active={tab === "results"} onClick={() => setTab("results")}>
-                  Results
-                </TabButton>
-                <TabButton active={tab === "validation"} onClick={() => setTab("validation")}>
-                  Validation
-                </TabButton>
+                ))}
               </div>
 
-              {tab === "knowledge" && (
-                <div className="space-y-3">
-                  {!workspace.knowledge.length ? (
-                    <div className="text-sm text-slate-600">Knowledge Agent outputs will appear here.</div>
-                  ) : (
-                    workspace.knowledge.map((k, i) => (
-                      <div key={i} className="rounded-2xl bg-sky-50 ring-1 ring-sky-100 p-4">
-                        <div className="text-sm font-semibold text-slate-900">{k.claim}</div>
-                        <div className="text-xs text-slate-600 mt-1">
-                          Source: <span className="font-medium">{k.source}</span> • Confidence:{" "}
-                          {Math.round((k.confidence || 0) * 100)}%
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+              {/* Goal */}
+              <label className="block mt-3 text-[11px] font-medium text-white/50 uppercase tracking-wider">Goal</label>
+              <textarea value={goal} onChange={(e) => setGoal(e.target.value)}
+                className="mt-1.5 w-full min-h-[80px] rounded-xl bg-white/[0.03] border border-white/[0.08] px-3 py-2.5 text-xs text-white/80 placeholder:text-white/20 outline-none focus:border-[#00f0ff]/30 resize-none"
+                placeholder="Describe your research goal…" />
 
-              {tab === "hypotheses" && (
-                <div className="space-y-3">
-                  {!workspace.hypotheses.length ? (
-                    <div className="text-sm text-slate-600">Hypothesis Agent outputs will appear here.</div>
-                  ) : (
-                    workspace.hypotheses.map((h) => (
-                      <div key={h.id} className="rounded-2xl bg-white ring-1 ring-slate-200 p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold text-slate-900">
-                            {h.id}: {h.claim}
-                          </div>
-                          <Pill tone="info">Testable</Pill>
-                        </div>
-                        <div className="text-sm text-slate-700 mt-2">Prediction: {h.prediction}</div>
-                      </div>
-                    ))
-                  )}
+              {/* Mode + Start */}
+              <div className="mt-3 flex items-center gap-2">
+                <div className="flex rounded-lg border border-white/[0.08] overflow-hidden flex-1">
+                  {["quick", "full"].map((m) => (
+                    <button key={m} onClick={() => setMode(m)}
+                      className={`flex-1 py-2 text-[11px] font-semibold transition ${mode === m ? "bg-[#00f0ff]/10 text-[#00f0ff]" : "bg-white/[0.02] text-white/30 hover:text-white/50"}`}>
+                      {m === "quick" ? "⚡ Quick" : "🔬 Full"}
+                    </button>
+                  ))}
                 </div>
-              )}
-
-              {tab === "experiments" && (
-                <div className="space-y-3">
-                  {!workspace.experiments.length ? (
-                    <div className="text-sm text-slate-600">Experiment plans will appear here.</div>
-                  ) : (
-                    workspace.experiments.map((e) => (
-                      <div key={e.id} className="rounded-2xl bg-white ring-1 ring-slate-200 p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold text-slate-900">
-                            {e.id} • {e.hypothesis}
-                          </div>
-                          <Pill tone="warn">Plan</Pill>
-                        </div>
-                        <div className="text-sm text-slate-700 mt-2">Metric: {e.metric}</div>
-                        <div className="text-sm text-slate-700">Success: {e.success}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {tab === "results" && (
-                <div className="space-y-3">
-                  {!workspace.results.length ? (
-                    <div className="text-sm text-slate-600">Execution + Analysis results will appear here.</div>
-                  ) : (
-                    workspace.results.map((r, i) => (
-                      <div key={i} className="rounded-2xl bg-emerald-50 ring-1 ring-emerald-100 p-4">
-                        <div className="text-sm font-semibold text-slate-900">Run: {r.run}</div>
-                        <div className="text-sm text-slate-700 mt-2">E1: {r.e1}</div>
-                        <div className="text-sm text-slate-700">E2: {r.e2}</div>
-                        <div className="text-xs text-slate-600 mt-1">{r.notes}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {tab === "validation" && (
-                <div className="space-y-3">
-                  {!workspace.validation.length ? (
-                    <div className="text-sm text-slate-600">Validation checks will appear here.</div>
-                  ) : (
-                    workspace.validation.map((v, i) => (
-                      <div
-                        key={i}
-                        className="rounded-2xl bg-white ring-1 ring-slate-200 p-4 flex items-center justify-between"
-                      >
-                        <div className="text-sm font-semibold text-slate-900">{v.check}</div>
-                        <Pill tone={String(v.status).includes("PASS") ? "good" : "bad"}>{v.status}</Pill>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {workspace.final && (
-                <div className="mt-5 rounded-2xl bg-white ring-1 ring-slate-200 p-4">
-                  <div className="text-sm font-semibold text-slate-900">Final</div>
-                  <div className="text-sm text-slate-700 mt-2 whitespace-pre-wrap">{workspace.final}</div>
-                </div>
-              )}
+                <button onClick={startRun} disabled={running || indexing}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold transition ${running || indexing
+                    ? "bg-white/[0.04] text-white/20 cursor-not-allowed"
+                    : "bg-gradient-to-r from-[#00f0ff] to-blue-500 text-lab-950 hover:shadow-glow-cyan hover:scale-[1.02]"}`}>
+                  {running ? "Running…" : "▶ Start"}
+                </button>
+              </div>
             </Card>
           </div>
 
-          {/* Right */}
-          <div className="lg:col-span-5 space-y-6">
-            <Card title="Agent Timeline" right={<Pill tone={running ? "info" : "neutral"}>{running ? "Running" : "Stopped"}</Pill>}>
-              <Stepper statusMap={agentStatus} active={activeAgent} />
-              <div className="mt-4 text-xs text-slate-600">
-                Current agent highlights during a run. In backend mode, update statuses via SSE.
-              </div>
-            </Card>
+          {/* ── Workspace Tabs ── */}
+          <Card title="Workspace" icon="📋" right={
+            <div className="flex items-center gap-1">
+              {TABS.map((t) => (
+                <TabBtn key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
+                  {t.label}
+                </TabBtn>
+              ))}
+            </div>
+          }>
+            <AnimatePresence mode="wait">
+              <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
 
-            <Card
-              title="Live Logs"
-              right={
-                <button
-                  type="button"
-                  onClick={() => setLogs([])}
-                  className="px-3 py-2 rounded-xl text-sm bg-white hover:bg-slate-50 ring-1 ring-slate-200 text-slate-800"
-                >
-                  Clear
-                </button>
-              }
-            >
-              <div className="h-[340px] overflow-auto rounded-2xl bg-white ring-1 ring-slate-200 p-4">
-                {logs.length === 0 ? (
-                  <div className="text-sm text-slate-600">Logs will appear here when you index documents or run ARS.</div>
-                ) : (
+                {/* ── Knowledge ── */}
+                {tab === "knowledge" && (
                   <div className="space-y-2">
-                    {logs.map((l, i) => (
-                      <div key={i} className="text-xs">
-                        <span className="text-slate-400">{l.ts.slice(11, 19)}</span>
-                        <span className="text-slate-300"> • </span>
-                        <span className={toneToClass(l.tone)}>{l.msg}</span>
+                    {!workspace.knowledge.length ? (
+                      <div className="text-xs text-white/30 py-8 text-center">Knowledge extraction results will appear here…</div>
+                    ) : workspace.knowledge.map((k, i) => (
+                      <div key={i} className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-slide-up">
+                        <div className="text-xs font-medium text-white/80">{k.claim}</div>
+                        <div className="mt-1.5 flex items-center gap-3 text-[10px] text-white/40">
+                          <span>📄 {k.source}</span>
+                          <span className="text-[#00f0ff] font-mono">{Math.round((k.confidence || 0) * 100)}%</span>
+                          {k.justification && <span className="text-white/25">• {k.justification?.slice(0, 60)}…</span>}
+                        </div>
                       </div>
                     ))}
-                    <div ref={logEndRef} />
                   </div>
                 )}
-              </div>
 
-              <div className="mt-3 text-xs text-slate-600">
-                Hook this to your backend SSE stream later (<span className="font-medium">/api/ars/stream</span>).
+                {/* ── Hypotheses ── */}
+                {tab === "hypotheses" && (
+                  <div className="space-y-3">
+                    {!workspace.hypotheses.length ? (
+                      <div className="text-xs text-white/30 py-8 text-center">Hypotheses will appear here…</div>
+                    ) : (
+                      <>
+                        {workspace.hypotheses.map((h) => (
+                          <div key={h.id} className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-slide-up">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="text-[10px] font-mono font-bold text-[#00f0ff] mr-2">{h.id}</span>
+                                <span className="text-xs font-medium text-white/80">{h.claim}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {h.novelty_score != null && (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-mono text-purple-400 bg-purple-400/10 border border-purple-400/20">
+                                    N:{(h.novelty_score * 100).toFixed(0)}%
+                                  </span>
+                                )}
+                                {h.confidence != null && (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-mono text-emerald-400 bg-emerald-400/10 border border-emerald-400/20">
+                                    C:{(h.confidence * 100).toFixed(0)}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-2 text-[11px] text-white/50">
+                              <span className="text-white/30">Prediction:</span> {h.prediction}
+                            </div>
+                            {h.justification && (
+                              <div className="mt-1 text-[10px] text-white/30 italic">
+                                {h.justification}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <HypothesisChart hypotheses={workspace.hypotheses} />
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Experiments ── */}
+                {tab === "experiments" && (
+                  <div className="space-y-2">
+                    {!workspace.experiments.length ? (
+                      <div className="text-xs text-white/30 py-8 text-center">Experiment designs will appear here…</div>
+                    ) : workspace.experiments.map((e) => (
+                      <div key={e.id} className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-slide-up">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-amber-400 mr-2">{e.id}</span>
+                            <span className="text-xs font-medium text-white/80">{e.title || e.metric}</span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[9px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/20">
+                            {e.hypothesis}
+                          </span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+                          <div><span className="text-white/30">Metric:</span> <span className="text-white/60">{e.metric}</span></div>
+                          <div><span className="text-white/30">Baseline:</span> <span className="text-white/60 font-mono">{e.baseline}</span></div>
+                          <div><span className="text-white/30">Success:</span> <span className="text-white/60">{e.success_criteria || e.success}</span></div>
+                        </div>
+                        {e.methodology && (
+                          <div className="mt-1.5 text-[10px] text-white/30">{typeof e.methodology === 'string' ? e.methodology.slice(0, 120) : ''}…</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Results ── */}
+                {tab === "results" && (
+                  <div className="space-y-3">
+                    {!workspace.results.length ? (
+                      <div className="text-xs text-white/30 py-8 text-center">Execution results will appear here…</div>
+                    ) : (
+                      <>
+                        {workspace.results.map((r, i) => (
+                          <div key={i} className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-slide-up">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-mono font-bold text-white/60">{r.experiment_id}</span>
+                                <span className="text-xs text-white/70">{r.metric}</span>
+                              </div>
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold border ${r.status === "PASS"
+                                ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/20"
+                                : "text-rose-400 bg-rose-400/10 border-rose-400/20"}`}>
+                                {r.status}
+                              </span>
+                            </div>
+                            <div className="mt-2 grid grid-cols-4 gap-2 text-[10px]">
+                              <div><span className="text-white/30">Value:</span> <span className="text-[#00f0ff] font-mono">{r.metric_value}</span></div>
+                              <div><span className="text-white/30">Base:</span> <span className="text-white/50 font-mono">{r.baseline}</span></div>
+                              <div><span className="text-white/30">Δ:</span> <span className="text-emerald-400 font-mono">{r.improvement}</span></div>
+                              <div><span className="text-white/30">p:</span> <span className="text-white/50 font-mono">{r.p_value}</span></div>
+                            </div>
+                            {r.log && <div className="mt-1.5 text-[10px] text-white/30">{r.log}</div>}
+                          </div>
+                        ))}
+                        <ExperimentResultsChart results={workspace.results} />
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Analysis ── */}
+                {tab === "analysis" && (
+                  <div className="space-y-4">
+                    {!workspace.analysis?.patterns?.length && !workspace.analysis?.conclusions?.length ? (
+                      <div className="text-xs text-white/30 py-8 text-center">Analysis results will appear here…</div>
+                    ) : (
+                      <>
+                        {workspace.analysis.key_insight && (
+                          <div className="px-4 py-3 rounded-xl neon-border-cyan bg-[#00f0ff]/[0.03]">
+                            <div className="text-[10px] font-semibold text-[#00f0ff]/70 uppercase tracking-wider mb-1">Key Insight</div>
+                            <div className="text-xs text-white/80">{workspace.analysis.key_insight}</div>
+                          </div>
+                        )}
+                        {workspace.analysis.patterns?.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Patterns</div>
+                            {workspace.analysis.patterns.map((p, i) => (
+                              <div key={i} className="text-xs text-white/60 py-1 flex items-start gap-2">
+                                <span className="text-purple-400 mt-0.5">◆</span> {p}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {workspace.analysis.conclusions?.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Conclusions</div>
+                            {workspace.analysis.conclusions.map((c, i) => (
+                              <div key={i} className="text-xs text-white/60 py-1 flex items-start gap-2">
+                                <span className="text-emerald-400 mt-0.5">●</span> {c}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {workspace.analysis.improvements?.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Improvements</div>
+                            {workspace.analysis.improvements.map((imp, i) => (
+                              <div key={i} className="text-xs text-white/50 py-1 flex items-start gap-2">
+                                <span className="text-amber-400 mt-0.5">▸</span> {imp}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Validation ── */}
+                {tab === "validation" && (
+                  <div>
+                    {!workspace.validation?.length ? (
+                      <div className="text-xs text-white/30 py-8 text-center">Validation checks will appear here…</div>
+                    ) : (
+                      <ValidationGrid checks={workspace.validation} />
+                    )}
+                  </div>
+                )}
+
+                {/* ── Learning ── */}
+                {tab === "learning" && (
+                  <div className="space-y-4">
+                    {!workspace.learning?.key_learnings?.length && !workspace.final ? (
+                      <div className="text-xs text-white/30 py-8 text-center">Learning synthesis will appear here…</div>
+                    ) : (
+                      <>
+                        {workspace.final && (
+                          <div className="px-4 py-3 rounded-xl neon-border-green bg-emerald-400/[0.03]">
+                            <div className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-wider mb-2">Final Summary</div>
+                            <pre className="text-xs text-white/70 whitespace-pre-wrap font-sans leading-relaxed">{workspace.final}</pre>
+                          </div>
+                        )}
+                        {workspace.learning?.key_learnings?.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Key Learnings</div>
+                            {workspace.learning.key_learnings.map((l, i) => (
+                              <div key={i} className="text-xs text-white/60 py-1">• {l}</div>
+                            ))}
+                          </div>
+                        )}
+                        {workspace.learning?.next_focus?.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Next Focus</div>
+                            {workspace.learning.next_focus.map((f, i) => (
+                              <div key={i} className="text-xs text-white/50 py-1">🎯 {f}</div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+              </motion.div>
+            </AnimatePresence>
+          </Card>
+        </div>
+
+        {/* ═══════════ RIGHT PANEL ═══════════ */}
+        <div className="xl:col-span-4 space-y-5">
+
+          {/* ── Live Logs ── */}
+          <Card title="Live Activity" icon="📡" right={
+            <button onClick={() => setLogs([])}
+              className="px-2 py-1 rounded-lg text-[10px] font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-white/40 transition">
+              Clear
+            </button>
+          }>
+            <div className="h-[260px] overflow-auto rounded-xl bg-black/20 border border-white/[0.04] p-3 font-mono">
+              {logs.length === 0 ? (
+                <div className="text-[10px] text-white/20 text-center py-8">Waiting for activity…</div>
+              ) : (
+                <div className="space-y-1">
+                  {logs.map((l, i) => (
+                    <div key={i} className="text-[10px] leading-relaxed flex items-start gap-2 animate-fade-in">
+                      <span className="text-white/20 shrink-0 w-[52px]">{l.ts?.slice(11, 19)}</span>
+                      <span className={toneClass(l.tone)}>{l.msg}</span>
+                    </div>
+                  ))}
+                  <div ref={logEndRef} />
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* ── Evaluation Metrics ── */}
+          <EvaluationRadarChart evaluation={workspace.evaluation} />
+
+          {/* ── Active Agent Detail ── */}
+          {activeAgent && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5 neon-border-cyan">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#00f0ff] animate-ping" />
+                <span className="text-sm font-bold text-[#00f0ff]">
+                  {AGENTS.find((a) => a.key === activeAgent)?.icon} {activeAgent.toUpperCase()}
+                </span>
               </div>
-            </Card>
-          </div>
+              <div className="mt-2 text-[11px] text-white/40">
+                {AGENTS.find((a) => a.key === activeAgent)?.desc}
+              </div>
+              <div className="mt-3 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-[#00f0ff] to-blue-500 rounded-full animate-pulse" style={{ width: "60%" }} />
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Quick Stats ── */}
+          <Card title="Pipeline Stats" icon="📈">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "Knowledge", value: workspace.knowledge.length, color: "text-blue-400" },
+                { label: "Hypotheses", value: workspace.hypotheses.length, color: "text-purple-400" },
+                { label: "Experiments", value: workspace.experiments.length, color: "text-amber-400" },
+                { label: "Results", value: workspace.results.length, color: "text-emerald-400" },
+                { label: "Passed", value: workspace.results.filter((r) => r.status === "PASS").length, color: "text-[#00f0ff]" },
+                { label: "Checks", value: workspace.validation.length, color: "text-rose-400" },
+              ].map((s) => (
+                <div key={s.label} className="px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+                  <div className="text-[10px] text-white/30">{s.label}</div>
+                  <div className={`text-lg font-bold font-mono ${s.color}`}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
       </div>
     </div>

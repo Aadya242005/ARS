@@ -7,14 +7,16 @@ from typing import Any, Dict
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 
 # Load environment variables from .env file
 load_dotenv()
 
-from .schemas import RunRequest, TopicResearchRequest, DocSummaryRequest, DocSummaryResponse
-from .graphs.research_graph import build_research_graph, NODES
+from .schemas import RunRequest, TopicResearchRequest, DocSummaryRequest, DocSummaryResponse, ReportRequest
+from .graphs.research_graph import NODES
 from .tools.summarize import summarize_documents
+from .tools.report import generate_report
+from .agents import knowledge, hypothesis, experiment, execution, analysis, validation, learning
 
 app = FastAPI(title="ARS Agentic Service")
 
@@ -27,7 +29,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-graph = build_research_graph()
+# Agent functions mapped by node name
+AGENT_FNS = {
+    "knowledge": knowledge.run,
+    "hypothesis": hypothesis.run,
+    "experiment": experiment.run,
+    "execution": execution.run,
+    "analysis": analysis.run,
+    "validation": validation.run,
+    "learning": learning.run,
+}
 
 # in-memory store (ok for dev)
 RUNS: Dict[str, Dict[str, Any]] = {}
@@ -40,11 +51,13 @@ async def _push(run_id: str, event: str, data: Any):
     async with LOCK:
         RUNS[run_id]["events"].append(_mk_event(event, data))
 
-def _init_state(run_id: str, goal: str, mode: str) -> Dict[str, Any]:
+def _init_state(run_id: str, goal: str, mode: str, domain: str = "AI", iteration: int = 1) -> Dict[str, Any]:
     return {
         "run_id": run_id,
         "goal": goal,
         "mode": mode,
+        "domain": domain,
+        "iteration": iteration,
         "active_node": None,
         "node_status": {k: "queued" for k in NODES},
         "logs": [],
@@ -56,35 +69,101 @@ def _init_state(run_id: str, goal: str, mode: str) -> Dict[str, Any]:
             "analysis": {"patterns": [], "conclusions": [], "improvements": []},
             "validation": [],
             "learning": {"key_learnings": [], "best_practices": [], "next_focus": [], "risk_mitigations": []},
+            "evaluation": {
+                "novelty_score": 0.0,
+                "reasoning_depth": 0.0,
+                "confidence_score": 0.0,
+                "iteration_improvement": 0.0,
+                "convergence_signal": False,
+                "recommended_iterations": 0,
+            },
             "final": "",
         },
     }
 
-async def _run_pipeline(run_id: str, goal: str, mode: str):
-    state = _init_state(run_id, goal, mode)
+async def _run_pipeline(run_id: str, goal: str, mode: str, domain: str = "AI"):
+    """Run the 7-agent pipeline with per-node streaming."""
+    state = _init_state(run_id, goal, mode, domain)
 
-    await _push(run_id, "run_started", {"run_id": run_id, "ts": datetime.utcnow().isoformat(), "goal": goal, "mode": mode})
+    await _push(run_id, "run_started", {
+        "run_id": run_id,
+        "ts": datetime.utcnow().isoformat(),
+        "goal": goal,
+        "mode": mode,
+        "domain": domain,
+    })
     await _push(run_id, "state_update", state)
 
-    # These events match your frontend needs (activeAgent + statuses)
-    for node in NODES:
+    # Determine which nodes to run based on mode
+    if mode == "quick":
+        nodes_to_run = ["knowledge", "hypothesis", "experiment"]
+    else:
+        nodes_to_run = list(NODES)
+
+    # Run each agent node sequentially with real execution
+    for node in nodes_to_run:
+        # Mark node as running
         state["active_node"] = node
         state["node_status"][node] = "running"
-        await _push(run_id, "node_started", {"node": node, "ts": datetime.utcnow().isoformat()})
+
+        await _push(run_id, "node_started", {
+            "node": node,
+            "ts": datetime.utcnow().isoformat(),
+        })
         await _push(run_id, "state_update", state)
         await asyncio.sleep(0.05)
 
-        # run one full graph at the end for correct workspace/logs
-        # (simple + reliable). For true per-node streaming, we’ll upgrade next.
-        state["node_status"][node] = "done"
-        await _push(run_id, "node_finished", {"node": node, "status": "done", "ts": datetime.utcnow().isoformat()})
+        try:
+            # Run the actual agent function (blocking LLM call)
+            agent_fn = AGENT_FNS[node]
+            state = await asyncio.get_event_loop().run_in_executor(None, agent_fn, state)
 
-    final_state = graph.invoke(state)
-    await _push(run_id, "state_update", final_state)
-    await _push(run_id, "run_finished", {"run_id": run_id, "ts": datetime.utcnow().isoformat()})
+            # Mark node as done
+            state["node_status"][node] = "done"
+
+            await _push(run_id, "node_finished", {
+                "node": node,
+                "status": "done",
+                "ts": datetime.utcnow().isoformat(),
+            })
+
+        except Exception as e:
+            # Mark node as failed but continue
+            state["node_status"][node] = "failed"
+            state.setdefault("logs", []).append({
+                "ts": datetime.utcnow().isoformat(),
+                "tone": "error",
+                "msg": f"Agent {node} failed: {str(e)}",
+                "node": node,
+            })
+
+            await _push(run_id, "node_finished", {
+                "node": node,
+                "status": "failed",
+                "ts": datetime.utcnow().isoformat(),
+                "error": str(e),
+            })
+
+        # Push updated state after each node
+        await _push(run_id, "state_update", state)
+        await asyncio.sleep(0.05)
+
+    # Mark remaining nodes as idle (for quick mode)
+    for node in NODES:
+        if state["node_status"][node] == "queued":
+            state["node_status"][node] = "idle"
+
+    state["active_node"] = None
+
+    # Final state push
+    await _push(run_id, "state_update", state)
+    await _push(run_id, "run_finished", {
+        "run_id": run_id,
+        "ts": datetime.utcnow().isoformat(),
+    })
 
     async with LOCK:
-        RUNS[run_id]["state"] = final_state
+        RUNS[run_id]["state"] = state
         RUNS[run_id]["done"] = True
 
 @app.post("/api/runs")
@@ -93,7 +172,7 @@ async def start_run(req: RunRequest):
     async with LOCK:
         RUNS[run_id] = {"events": [], "state": None, "done": False}
 
-    asyncio.create_task(_run_pipeline(run_id, req.goal, req.mode))
+    asyncio.create_task(_run_pipeline(run_id, req.goal, req.mode, req.domain))
     return {"run_id": run_id}
 
 @app.get("/api/runs/{run_id}")
@@ -142,7 +221,35 @@ async def research_topic(req: TopicResearchRequest):
     run_id = f"topic_{int(datetime.utcnow().timestamp() * 1000)}"
     async with LOCK:
         RUNS[run_id] = {"events": [], "state": None, "done": False}
-    
+
     goal = f"Research and analyze the topic: {req.topic}. Generate testable hypotheses, experiment designs, and actionable insights."
-    asyncio.create_task(_run_pipeline(run_id, goal, req.mode))
+    asyncio.create_task(_run_pipeline(run_id, goal, req.mode, req.domain))
     return {"run_id": run_id}
+
+@app.post("/api/report")
+async def get_report(req: ReportRequest):
+    """Generate a research report from a completed run."""
+    async with LOCK:
+        if req.run_id not in RUNS:
+            return JSONResponse(status_code=404, content={"error": "run_id not found"})
+        r = RUNS[req.run_id]
+        if not r["done"]:
+            return JSONResponse(status_code=400, content={"error": "Run not yet complete"})
+        state = r["state"]
+
+    report = generate_report(state)
+    return {"run_id": req.run_id, "report": report}
+
+@app.get("/api/runs")
+async def list_runs():
+    """List all runs with their status."""
+    async with LOCK:
+        runs_list = []
+        for run_id, r in RUNS.items():
+            runs_list.append({
+                "run_id": run_id,
+                "done": r["done"],
+                "goal": r["state"].get("goal", "") if r["state"] else "",
+                "domain": r["state"].get("domain", "AI") if r["state"] else "AI",
+            })
+    return {"runs": runs_list}

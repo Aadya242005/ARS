@@ -3,9 +3,9 @@ uvicorn
 python-dotenv
 langgraph
 langchain-core
-langchain-openai
 langchain-community
 pydantic
 openai
 requests
 beautifulsoup4
+lxml

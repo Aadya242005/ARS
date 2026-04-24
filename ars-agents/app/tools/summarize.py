@@ -40,7 +40,7 @@ def summarize_documents(doc_ids: List[str], goal: str = "") -> Dict[str, Any]:
     # Step 3: Call OpenAI to extract structured insights
     try:
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",

@@ -2,6 +2,9 @@ import os
 import json
 import sqlite3
 import logging
+import math
+import re
+from collections import Counter
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,19 +19,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # -----------------------------
-# Env + OpenAI
+# Env + xAI/Grok Client
 # -----------------------------
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY missing in environment; set it in .env or export it")
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+if not XAI_API_KEY:
+    raise RuntimeError("XAI_API_KEY missing in environment; set it in .env or export it")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-logger.info("Loaded OPENAI_API_KEY successfully")
+client = OpenAI(api_key=XAI_API_KEY, base_url="https://api.groq.com/openai/v1")
+logger.info("Loaded XAI_API_KEY successfully")
 
 
-DB_PATH = "docs.db"
+DB_PATH = os.path.join(os.path.dirname(__file__), "docs.db")
 
 
 def get_db_connection():
@@ -55,7 +58,59 @@ def init_db():
 
 
 # -----------------------------
-# Chunking + Embeddings
+# Simple TF-IDF Embedding (no external API needed)
+# -----------------------------
+def tokenize(text: str) -> List[str]:
+    """Simple tokenizer: lowercase, split on non-alphanumeric"""
+    return re.findall(r'[a-z0-9]+', text.lower())
+
+
+def compute_tf(tokens: List[str]) -> dict:
+    """Compute term frequency"""
+    counter = Counter(tokens)
+    total = len(tokens)
+    if total == 0:
+        return {}
+    return {word: count / total for word, count in counter.items()}
+
+
+def simple_embedding(text: str) -> List[float]:
+    """
+    Create a simple bag-of-words style embedding.
+    Uses a fixed vocabulary hash to map tokens to a fixed-size vector.
+    """
+    tokens = tokenize(text)
+    tf = compute_tf(tokens)
+    
+    # Use a fixed-size vector (256 dimensions)
+    vec_size = 256
+    vector = [0.0] * vec_size
+    
+    for word, freq in tf.items():
+        # Hash word to a position in the vector
+        idx = hash(word) % vec_size
+        vector[idx] += freq
+    
+    # L2 normalize
+    norm = math.sqrt(sum(v * v for v in vector))
+    if norm > 0:
+        vector = [v / norm for v in vector]
+    
+    return vector
+
+
+def get_embedding(text: str) -> str:
+    """Get embedding for text using simple local method"""
+    try:
+        embedding = simple_embedding(text)
+        return json.dumps(embedding)
+    except Exception as e:
+        logger.error(f"Embedding error: {e}")
+        raise
+
+
+# -----------------------------
+# Chunking
 # -----------------------------
 def simple_chunk(text: str, chunk_size: int = 500, overlap: int = 100) -> List[str]:
     """Simple chunking by character count with overlap"""
@@ -74,19 +129,6 @@ def simple_chunk(text: str, chunk_size: int = 500, overlap: int = 100) -> List[s
         start = end - overlap
 
     return chunks
-
-
-def get_embedding(text: str) -> str:
-    """Get OpenAI embedding for text"""
-    try:
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text
-        )
-        return json.dumps(response.data[0].embedding)
-    except Exception as e:
-        logger.error(f"Embedding error: {e}")
-        raise
 
 
 def store_chunks(doc_name: str, chunks: List[str]):
@@ -113,8 +155,6 @@ def store_chunks(doc_name: str, chunks: List[str]):
 
 def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     """Compute cosine similarity between two vectors"""
-    import math
-
     dot = sum(a * b for a, b in zip(vec1, vec2))
     norm1 = math.sqrt(sum(a * a for a in vec1))
     norm2 = math.sqrt(sum(b * b for b in vec2))
@@ -237,7 +277,7 @@ def retrieve(req: RetrievalRequest):
 
 @app.post("/api/chat")
 def chat(req: ChatRequest):
-    """General chat endpoint using OpenAI"""
+    """General chat endpoint using Grok"""
     try:
         messages = []
 
@@ -254,7 +294,7 @@ def chat(req: ChatRequest):
         })
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="llama-3.3-70b-versatile",
             messages=messages,
             max_tokens=500,
             temperature=0.7
@@ -297,7 +337,7 @@ Keep the output practical, detailed, and useful for a research workflow.
 """
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
