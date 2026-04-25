@@ -9,6 +9,9 @@
 [![Vite](https://img.shields.io/badge/Vite-B73BFE?logo=vite&logoColor=FFD62E)](https://vitejs.dev/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-AI-FF9900.svg)](https://langchain.com)
 [![Groq](https://img.shields.io/badge/Groq-Llama%203.3-f54e42.svg)](https://groq.com)
+[![CI](https://github.com/Aadya242005/ARS/actions/workflows/ci.yml/badge.svg)](https://github.com/Aadya242005/ARS/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [Features](#-features) • [Architecture](#-architecture) • [Agent Workflow](#-the-7-agent-cycle) • [Quick Start](#-quick-start) • [Tech Stack](#-tech-stack)
 
@@ -133,6 +136,25 @@ In modern R&D, human bottlenecking during the literature review and hypothesis-g
 By enforcing rigorous validation checks and ensuring output is grounded in provided documents/web-data, ARS guarantees that hallucination is minimized, making it an enterprise-ready pipeline for intelligence gathering.
 
 ---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a PR.
+
+## 🔒 Security
+
+Please review our [Security Policy](SECURITY.md) for reporting vulnerabilities responsibly.
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
 <div align="center">
-  <i>Built with ❤️ by Aadya242005</i>
+
+**[⬆ Back to Top](#-ars-autonomous-research-scientist)**
+
+Built with ❤️ by [Aadya242005](https://github.com/Aadya242005)
+
 </div>
