@@ -6,20 +6,26 @@ import {
   EvaluationRadarChart,
   HypothesisChart,
   ValidationGrid,
+  DataProcessingHeatmap,
+  DistributionPlot,
 } from "../components/ResearchCharts";
+import {
+  KnowledgeCard, HypothesisCard, ExperimentCard,
+  ResultCard, AnalysisSection, LearningSection,
+} from "../components/ResearchCards";
 
 /* ───────── Constants ───────── */
 const AGENTS_API = "http://localhost:6060";
 const BACKEND_API = "http://localhost:5050";
 
 const AGENTS = [
-  { key: "knowledge",  label: "Knowledge",  icon: "📚", desc: "Extract key insights" },
+  { key: "knowledge", label: "Knowledge", icon: "📚", desc: "Extract key insights" },
   { key: "hypothesis", label: "Hypothesis", icon: "💡", desc: "Generate testable claims" },
   { key: "experiment", label: "Experiment", icon: "🧪", desc: "Design experiments" },
-  { key: "execution",  label: "Execution",  icon: "⚡", desc: "Run experiments" },
-  { key: "analysis",   label: "Analysis",   icon: "📊", desc: "Interpret results" },
+  { key: "execution", label: "Execution", icon: "⚡", desc: "Run experiments" },
+  { key: "analysis", label: "Analysis", icon: "📊", desc: "Interpret results" },
   { key: "validation", label: "Validation", icon: "🛡️", desc: "Verify pipeline" },
-  { key: "learning",   label: "Learning",   icon: "🧠", desc: "Synthesize insights" },
+  { key: "learning", label: "Learning", icon: "🧠", desc: "Synthesize insights" },
 ];
 
 const DOMAINS = [
@@ -75,9 +81,9 @@ function PipelineStepper({ statusMap, active }) {
         const isActive = active === a.key;
         const pillClass = s === "done" ? "node-pill-done"
           : s === "running" ? "node-pill-active"
-          : s === "failed" ? "node-pill-failed"
-          : s === "queued" ? "node-pill-queued"
-          : "node-pill-idle";
+            : s === "failed" ? "node-pill-failed"
+              : s === "queued" ? "node-pill-queued"
+                : "node-pill-idle";
 
         return (
           <div key={a.key} className="flex items-center gap-1.5">
@@ -555,19 +561,13 @@ export default function ResearchDashboard() {
 
                 {/* ── Knowledge ── */}
                 {tab === "knowledge" && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {!workspace.knowledge.length ? (
                       <div className="text-xs text-white/30 py-8 text-center">Knowledge extraction results will appear here…</div>
                     ) : workspace.knowledge.map((k, i) => (
-                      <div key={i} className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-slide-up">
-                        <div className="text-xs font-medium text-white/80">{k.claim}</div>
-                        <div className="mt-1.5 flex items-center gap-3 text-[10px] text-white/40">
-                          <span>📄 {k.source}</span>
-                          <span className="text-[#00f0ff] font-mono">{Math.round((k.confidence || 0) * 100)}%</span>
-                          {k.justification && <span className="text-white/25">• {k.justification?.slice(0, 60)}…</span>}
-                        </div>
-                      </div>
+                      <KnowledgeCard key={i} item={k} index={i} />
                     ))}
+                    {workspace.knowledge.length > 0 && <DataProcessingHeatmap />}
                   </div>
                 )}
 
@@ -578,35 +578,8 @@ export default function ResearchDashboard() {
                       <div className="text-xs text-white/30 py-8 text-center">Hypotheses will appear here…</div>
                     ) : (
                       <>
-                        {workspace.hypotheses.map((h) => (
-                          <div key={h.id} className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-slide-up">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="text-[10px] font-mono font-bold text-[#00f0ff] mr-2">{h.id}</span>
-                                <span className="text-xs font-medium text-white/80">{h.claim}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {h.novelty_score != null && (
-                                  <span className="px-2 py-0.5 rounded text-[9px] font-mono text-purple-400 bg-purple-400/10 border border-purple-400/20">
-                                    N:{(h.novelty_score * 100).toFixed(0)}%
-                                  </span>
-                                )}
-                                {h.confidence != null && (
-                                  <span className="px-2 py-0.5 rounded text-[9px] font-mono text-emerald-400 bg-emerald-400/10 border border-emerald-400/20">
-                                    C:{(h.confidence * 100).toFixed(0)}%
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="mt-2 text-[11px] text-white/50">
-                              <span className="text-white/30">Prediction:</span> {h.prediction}
-                            </div>
-                            {h.justification && (
-                              <div className="mt-1 text-[10px] text-white/30 italic">
-                                {h.justification}
-                              </div>
-                            )}
-                          </div>
+                        {workspace.hypotheses.map((h, i) => (
+                          <HypothesisCard key={h.id} item={h} index={i} />
                         ))}
                         <HypothesisChart hypotheses={workspace.hypotheses} />
                       </>
@@ -616,29 +589,11 @@ export default function ResearchDashboard() {
 
                 {/* ── Experiments ── */}
                 {tab === "experiments" && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {!workspace.experiments.length ? (
                       <div className="text-xs text-white/30 py-8 text-center">Experiment designs will appear here…</div>
-                    ) : workspace.experiments.map((e) => (
-                      <div key={e.id} className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-slide-up">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-mono font-bold text-amber-400 mr-2">{e.id}</span>
-                            <span className="text-xs font-medium text-white/80">{e.title || e.metric}</span>
-                          </div>
-                          <span className="px-2 py-0.5 rounded text-[9px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/20">
-                            {e.hypothesis}
-                          </span>
-                        </div>
-                        <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
-                          <div><span className="text-white/30">Metric:</span> <span className="text-white/60">{e.metric}</span></div>
-                          <div><span className="text-white/30">Baseline:</span> <span className="text-white/60 font-mono">{e.baseline}</span></div>
-                          <div><span className="text-white/30">Success:</span> <span className="text-white/60">{e.success_criteria || e.success}</span></div>
-                        </div>
-                        {e.methodology && (
-                          <div className="mt-1.5 text-[10px] text-white/30">{typeof e.methodology === 'string' ? e.methodology.slice(0, 120) : ''}…</div>
-                        )}
-                      </div>
+                    ) : workspace.experiments.map((e, i) => (
+                      <ExperimentCard key={e.id} item={e} index={i} />
                     ))}
                   </div>
                 )}
@@ -651,28 +606,10 @@ export default function ResearchDashboard() {
                     ) : (
                       <>
                         {workspace.results.map((r, i) => (
-                          <div key={i} className="px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.05] animate-slide-up">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono font-bold text-white/60">{r.experiment_id}</span>
-                                <span className="text-xs text-white/70">{r.metric}</span>
-                              </div>
-                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold border ${r.status === "PASS"
-                                ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/20"
-                                : "text-rose-400 bg-rose-400/10 border-rose-400/20"}`}>
-                                {r.status}
-                              </span>
-                            </div>
-                            <div className="mt-2 grid grid-cols-4 gap-2 text-[10px]">
-                              <div><span className="text-white/30">Value:</span> <span className="text-[#00f0ff] font-mono">{r.metric_value}</span></div>
-                              <div><span className="text-white/30">Base:</span> <span className="text-white/50 font-mono">{r.baseline}</span></div>
-                              <div><span className="text-white/30">Δ:</span> <span className="text-emerald-400 font-mono">{r.improvement}</span></div>
-                              <div><span className="text-white/30">p:</span> <span className="text-white/50 font-mono">{r.p_value}</span></div>
-                            </div>
-                            {r.log && <div className="mt-1.5 text-[10px] text-white/30">{r.log}</div>}
-                          </div>
+                          <ResultCard key={i} item={r} index={i} />
                         ))}
                         <ExperimentResultsChart results={workspace.results} />
+                        <DistributionPlot />
                       </>
                     )}
                   </div>
@@ -680,48 +617,11 @@ export default function ResearchDashboard() {
 
                 {/* ── Analysis ── */}
                 {tab === "analysis" && (
-                  <div className="space-y-4">
+                  <div>
                     {!workspace.analysis?.patterns?.length && !workspace.analysis?.conclusions?.length ? (
                       <div className="text-xs text-white/30 py-8 text-center">Analysis results will appear here…</div>
                     ) : (
-                      <>
-                        {workspace.analysis.key_insight && (
-                          <div className="px-4 py-3 rounded-xl neon-border-cyan bg-[#00f0ff]/[0.03]">
-                            <div className="text-[10px] font-semibold text-[#00f0ff]/70 uppercase tracking-wider mb-1">Key Insight</div>
-                            <div className="text-xs text-white/80">{workspace.analysis.key_insight}</div>
-                          </div>
-                        )}
-                        {workspace.analysis.patterns?.length > 0 && (
-                          <div>
-                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Patterns</div>
-                            {workspace.analysis.patterns.map((p, i) => (
-                              <div key={i} className="text-xs text-white/60 py-1 flex items-start gap-2">
-                                <span className="text-purple-400 mt-0.5">◆</span> {p}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {workspace.analysis.conclusions?.length > 0 && (
-                          <div>
-                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Conclusions</div>
-                            {workspace.analysis.conclusions.map((c, i) => (
-                              <div key={i} className="text-xs text-white/60 py-1 flex items-start gap-2">
-                                <span className="text-emerald-400 mt-0.5">●</span> {c}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {workspace.analysis.improvements?.length > 0 && (
-                          <div>
-                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Improvements</div>
-                            {workspace.analysis.improvements.map((imp, i) => (
-                              <div key={i} className="text-xs text-white/50 py-1 flex items-start gap-2">
-                                <span className="text-amber-400 mt-0.5">▸</span> {imp}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </>
+                      <AnalysisSection analysis={workspace.analysis} />
                     )}
                   </div>
                 )}
@@ -739,34 +639,11 @@ export default function ResearchDashboard() {
 
                 {/* ── Learning ── */}
                 {tab === "learning" && (
-                  <div className="space-y-4">
+                  <div>
                     {!workspace.learning?.key_learnings?.length && !workspace.final ? (
                       <div className="text-xs text-white/30 py-8 text-center">Learning synthesis will appear here…</div>
                     ) : (
-                      <>
-                        {workspace.final && (
-                          <div className="px-4 py-3 rounded-xl neon-border-green bg-emerald-400/[0.03]">
-                            <div className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-wider mb-2">Final Summary</div>
-                            <pre className="text-xs text-white/70 whitespace-pre-wrap font-sans leading-relaxed">{workspace.final}</pre>
-                          </div>
-                        )}
-                        {workspace.learning?.key_learnings?.length > 0 && (
-                          <div>
-                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Key Learnings</div>
-                            {workspace.learning.key_learnings.map((l, i) => (
-                              <div key={i} className="text-xs text-white/60 py-1">• {l}</div>
-                            ))}
-                          </div>
-                        )}
-                        {workspace.learning?.next_focus?.length > 0 && (
-                          <div>
-                            <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">Next Focus</div>
-                            {workspace.learning.next_focus.map((f, i) => (
-                              <div key={i} className="text-xs text-white/50 py-1">🎯 {f}</div>
-                            ))}
-                          </div>
-                        )}
-                      </>
+                      <LearningSection learning={workspace.learning} final={workspace.final} evaluation={workspace.evaluation} />
                     )}
                   </div>
                 )}

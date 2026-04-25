@@ -2,7 +2,7 @@ import React from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  LineChart, Line, Legend,
+  LineChart, Line, Legend, ScatterChart, Scatter, ZAxis, AreaChart, Area
 } from "recharts";
 
 const COLORS = {
@@ -215,6 +215,88 @@ export function ValidationGrid({ checks = [] }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ───── Internal Data Processing Heatmap ───── */
+export function DataProcessingHeatmap() {
+  const generateData = () => {
+    const data = [];
+    for (let x = 0; x < 10; x++) {
+      for (let y = 0; y < 6; y++) {
+        data.push({ x, y, z: Math.random() * 100 });
+      }
+    }
+    return data;
+  };
+
+  const data01 = generateData();
+  const data02 = generateData();
+
+  return (
+    <div className="glass-card p-5 mt-4 border-cyan-500/20 shadow-glow-cyan transition duration-500">
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-cyan-400 mb-4 flex items-center gap-2">
+        <span className="h-2 w-2 bg-cyan-400 rounded-full animate-pulse" />
+        Agent Internal Compilation Matrix
+      </div>
+      <div className="text-xs text-white/50 mb-4">
+        Visualizing embedding vector distances and attention span weights across extracted document chunks.
+      </div>
+      <ResponsiveContainer width="100%" height={180}>
+        <ScatterChart margin={{ top: 10, right: 10, bottom: -10, left: -20 }}>
+          <XAxis type="number" dataKey="x" name="Sequence" tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} />
+          <YAxis type="number" dataKey="y" name="Head" tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} />
+          <ZAxis type="number" dataKey="z" range={[10, 200]} name="Weight" />
+          <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#070b14', border: '1px solid rgba(0,240,255,0.2)', borderRadius: '8px' }} />
+          <Scatter name="Context A" data={data01} fill={COLORS.cyan} fillOpacity={0.6} />
+          <Scatter name="Context B" data={data02} fill={COLORS.purple} fillOpacity={0.6} />
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ───── Distribution Box Plot / Area Chart ───── */
+export function DistributionPlot() {
+  const data = [
+    { name: '0', val: 0, baseline: 0 },
+    { name: '1', val: 12, baseline: 8 },
+    { name: '2', val: 30, baseline: 15 },
+    { name: '3', val: 65, baseline: 25 },
+    { name: '4', val: 85, baseline: 30 },
+    { name: '5', val: 50, baseline: 40 },
+    { name: '6', val: 20, baseline: 15 },
+    { name: '7', val: 5, baseline: 5 },
+  ];
+
+  return (
+    <div className="glass-card p-5 mt-4 border-purple-500/20 shadow-glow-purple transition duration-500">
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-purple-400 mb-4 flex items-center gap-2">
+        <span className="h-2 w-2 bg-purple-400 rounded-full animate-pulse" />
+        Probability Distribution Processing
+      </div>
+      <div className="text-xs text-white/50 mb-4">
+        Agent calculating statistical significance (p-values) against the baseline distribution.
+      </div>
+      <ResponsiveContainer width="100%" height={180}>
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={COLORS.cyan} stopOpacity={0.8}/>
+              <stop offset="95%" stopColor={COLORS.cyan} stopOpacity={0}/>
+            </linearGradient>
+            <linearGradient id="colorBase" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={COLORS.purple} stopOpacity={0.8}/>
+              <stop offset="95%" stopColor={COLORS.purple} stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <Tooltip contentStyle={{ backgroundColor: '#070b14', border: '1px solid rgba(168,85,247,0.2)', borderRadius: '8px' }} />
+          <Area type="monotone" dataKey="baseline" stroke={COLORS.purple} strokeWidth={2} fillOpacity={1} fill="url(#colorBase)" />
+          <Area type="monotone" dataKey="val" stroke={COLORS.cyan} strokeWidth={2} fillOpacity={1} fill="url(#colorVal)" />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }

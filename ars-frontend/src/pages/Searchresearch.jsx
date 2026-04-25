@@ -1,22 +1,22 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
-import bgImage from "../assets/bg11.jpg";
+import MarkdownRenderer from "../components/MarkdownRenderer";
 
 function Pill({ tone = "neutral", children }) {
   const cls =
     tone === "good"
-      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+      ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
       : tone === "info"
-      ? "bg-sky-50 text-sky-700 ring-sky-200"
+      ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
       : tone === "warn"
-      ? "bg-amber-50 text-amber-700 ring-amber-200"
+      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
       : tone === "bad"
-      ? "bg-rose-50 text-rose-700 ring-rose-200"
-      : "bg-slate-50 text-slate-700 ring-slate-200";
+      ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+      : "bg-white/5 text-white/40 border border-white/10";
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ring-1 ${cls}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-md ${cls}`}>
       {children}
     </span>
   );
@@ -24,12 +24,12 @@ function Pill({ tone = "neutral", children }) {
 
 function Card({ title, right, children }) {
   return (
-    <div className="rounded-2xl bg-white/95 backdrop-blur-sm shadow-xl ring-1 ring-white/20 hover:shadow-2xl transition">
-      <div className="px-6 py-4 border-b border-slate-200/40 flex items-center justify-between gap-3">
-        <div className="text-sm font-semibold text-slate-900">{title}</div>
+    <div className="rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-xl shadow-glow-cyan overflow-hidden">
+      <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between gap-3 bg-white/[0.02]">
+        <div className="text-sm font-semibold text-white/90 font-display">{title}</div>
         {right}
       </div>
-      <div className="p-6">{children}</div>
+      <div className="p-6 text-white/80">{children}</div>
     </div>
   );
 }
@@ -64,10 +64,10 @@ export default function SearchResearch() {
   }
 
   function toneToClass(tone) {
-    if (tone === "good") return "text-emerald-700";
-    if (tone === "warn") return "text-amber-700";
-    if (tone === "bad") return "text-rose-700";
-    return "text-slate-700";
+    if (tone === "good") return "text-emerald-400";
+    if (tone === "warn") return "text-amber-400";
+    if (tone === "bad") return "text-rose-400";
+    return "text-cyan-400";
   }
 
   async function startResearch() {
@@ -154,153 +154,169 @@ export default function SearchResearch() {
     }
   }
 
-  function generateResearchSummary() {
-    const { topic, knowledge, hypotheses, experiments, results, validation, learning, final } = research;
+  function stripMD(t = "") {
+    return t.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1").replace(/^#+\s*/gm, "").trim();
+  }
 
-    let summary = `RESEARCH SUMMARY: ${topic.toUpperCase()}\n`;
-    summary += `Generated on: ${new Date().toLocaleDateString()}\n\n`;
-
-    summary += `EXECUTIVE SUMMARY\n`;
-    summary += `This research investigated ${topic} using an automated research workflow. `;
-    summary += `The current system generated a structured topic-level summary and planning response. `;
-    summary += `Knowledge items: ${knowledge.length}, Hypotheses: ${hypotheses.length}, Experiments: ${experiments.length}, Validations: ${validation.length}.\n\n`;
-
-    summary += `RESEARCH OUTPUT\n`;
-    summary += `${final}\n\n`;
-
-    summary += `KEY FINDINGS\n`;
-    if (learning.keyLearnings?.length) {
-      learning.keyLearnings.forEach((item, i) => {
-        summary += `${i + 1}. ${item}\n`;
-      });
-    } else {
-      summary += `1. Initial topic-level summary generated.\n`;
-      summary += `2. More agent stages can be integrated later.\n`;
-    }
-
-    summary += `\nBEST PRACTICES\n`;
-    if (learning.bestPractices?.length) {
-      learning.bestPractices.forEach((item) => {
-        summary += `• ${item}\n`;
-      });
-    }
-
-    summary += `\nNEXT STEPS\n`;
-    if (learning.nextSteps?.length) {
-      learning.nextSteps.forEach((item, i) => {
-        summary += `${i + 1}. ${item}\n`;
-      });
-    }
-
-    summary += `\nRISKS\n`;
-    if (learning.risks?.length) {
-      learning.risks.forEach((item) => {
-        summary += `• ${item}\n`;
-      });
-    }
-
-    return summary;
+  function parseMD(text = "") {
+    return text.split("\n").map(raw => {
+      const line = raw.trimEnd();
+      if (!line) return { type: "spacer" };
+      const hm = line.match(/^\*\*(.*?)\*\*\s*$/);
+      if (hm) return { type: "heading", text: hm[1] };
+      const nm = line.match(/^(\d+)\.\s+\*\*(.*?)\*\*[:\s]+(.*)/);
+      if (nm) return { type: "item", num: nm[1], bold: nm[2], rest: nm[3] };
+      const ns = line.match(/^(\d+)\.\s+(.*)/);
+      if (ns) return { type: "item", num: ns[1], bold: null, rest: ns[2] };
+      if (/^[\u2022\-]\s+/.test(line)) return { type: "bullet", text: stripMD(line.replace(/^[\u2022\-]\s+/, "")) };
+      return { type: "para", text: stripMD(line) };
+    });
   }
 
   function downloadSummaryPDF() {
     try {
-      const summary = generateResearchSummary();
-      const pdf = new jsPDF();
+      const pdf = new jsPDF({ unit: "mm", format: "a4" });
+      const W = pdf.internal.pageSize.getWidth();
+      const H = pdf.internal.pageSize.getHeight();
+      const M = 20;
+      const CW = W - M * 2;
+      let y = M;
+      let pg = 1;
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(12);
+      const putPageNum = () => {
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.setTextColor(150, 150, 150);
+        pdf.text(String(pg), W - M, 10, { align: "right" }); pdf.setTextColor(0, 0, 0);
+      };
 
-      pdf.setFontSize(16);
-      pdf.setFont("helvetica", "bold");
-      pdf.text(`Research Summary: ${research.topic}`, 15, 20);
-
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(`Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 15, 30);
-
-      const lines = pdf.splitTextToSize(summary, 180);
-      let y = 45;
-      let pageCount = 1;
-
-      lines.forEach((line) => {
-        if (y > 270) {
-          pdf.addPage();
-          pageCount++;
-          pdf.setFontSize(10);
-          pdf.text(`Page ${pageCount}`, 15, 15);
-          y = 25;
+      const chk = () => {
+        if (y > H - 25) {
+          putPageNum(); pdf.addPage(); pg++; y = M + 6;
+          pdf.setDrawColor(210, 210, 210); pdf.setLineWidth(0.3); pdf.line(M, 14, W - M, 14);
         }
-        pdf.text(line, 15, y);
-        y += 5;
-      });
+      };
 
-      if (y > 250) {
-        pdf.addPage();
-        y = 20;
+      const heading = (txt) => {
+        chk(); y += 4;
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(11); pdf.setTextColor(0, 0, 0);
+        pdf.text(txt.toUpperCase(), M, y); y += 2;
+        pdf.setDrawColor(200, 200, 200); pdf.setLineWidth(0.3);
+        pdf.line(M, y + 1, W - M, y + 1); y += 7;
+      };
+
+      const para = (txt) => {
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(10); pdf.setTextColor(50, 50, 50);
+        pdf.splitTextToSize(txt, CW).forEach(l => { chk(); pdf.text(l, M, y); y += 5.5; }); y += 2;
+      };
+
+      // ── Title block ──────────────────────────────────────────────────
+      pdf.setFillColor(0, 0, 0); pdf.rect(M, y, CW, 1.2, "F"); y += 10;
+      pdf.setFont("helvetica", "bold"); pdf.setFontSize(22); pdf.setTextColor(0, 0, 0);
+      pdf.text(research.topic.toUpperCase(), M, y); y += 8;
+      pdf.setFont("helvetica", "normal"); pdf.setFontSize(11); pdf.setTextColor(80, 80, 80);
+      pdf.text("Research Analysis Report", M, y); y += 5;
+      pdf.setFont("helvetica", "italic"); pdf.setFontSize(9); pdf.setTextColor(150, 150, 150);
+      pdf.text("Autonomous Research Scientist  \u00b7  ARS v2.0", M, y); y += 8;
+      pdf.setDrawColor(0, 0, 0); pdf.setLineWidth(0.5); pdf.line(M, y, W - M, y); y += 12;
+
+      // ── Executive Overview ───────────────────────────────────────────
+      heading("Executive Overview");
+      para(`This report presents a structured analysis of ${research.topic}, compiled by an autonomous multi-agent AI research pipeline. The agents extracted knowledge from literature, generated testable hypotheses, designed experiments, and synthesized findings into the sections below.`);
+
+      // ── Main AI content ──────────────────────────────────────────────
+      for (const s of parseMD(research.final || "")) {
+        chk();
+        if (s.type === "spacer") { y += 2; continue; }
+        if (s.type === "heading") { heading(s.text); continue; }
+        if (s.type === "item") {
+          pdf.setFontSize(10);
+          pdf.setFont("helvetica", "bold"); pdf.setTextColor(0, 0, 0);
+          pdf.text(`${s.num}.`, M, y);
+          const tx = M + 8;
+          if (s.bold) {
+            const bl = s.bold + ": ";
+            pdf.text(bl, tx, y);
+            const bw = pdf.getTextWidth(bl);
+            pdf.setFont("helvetica", "normal"); pdf.setTextColor(60, 60, 60);
+            const rls = pdf.splitTextToSize(s.rest, CW - 8 - bw);
+            rls.forEach((l, i) => { chk(); pdf.text(l, tx + bw, y); if (i < rls.length - 1) y += 5.5; });
+          } else {
+            pdf.setFont("helvetica", "normal"); pdf.setTextColor(60, 60, 60);
+            const rls = pdf.splitTextToSize(s.rest, CW - 8);
+            rls.forEach((l, i) => { chk(); pdf.text(l, tx, y); if (i < rls.length - 1) y += 5.5; });
+          }
+          y += 6; continue;
+        }
+        if (s.type === "bullet") {
+          pdf.setFont("helvetica", "normal"); pdf.setFontSize(10); pdf.setTextColor(60, 60, 60);
+          pdf.text("\u2013", M + 1, y);
+          const bls = pdf.splitTextToSize(s.text, CW - 7);
+          bls.forEach((l, i) => { chk(); pdf.text(l, M + 7, y); if (i < bls.length - 1) y += 5.5; });
+          y += 6; continue;
+        }
+        if (s.type === "para" && s.text) para(s.text);
       }
 
-      y += 10;
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("RECOMMENDED RESEARCH SOURCES", 15, y);
-      y += 10;
+      // ── Key Findings ─────────────────────────────────────────────────
+      if (research.learning?.keyLearnings?.length) {
+        heading("Key Findings");
+        research.learning.keyLearnings.forEach((item, i) => {
+          chk();
+          pdf.setFont("helvetica", "bold"); pdf.setFontSize(10); pdf.setTextColor(0, 0, 0); pdf.text(`${i + 1}.`, M, y);
+          pdf.setFont("helvetica", "normal"); pdf.setTextColor(60, 60, 60);
+          const ls = pdf.splitTextToSize(stripMD(item), CW - 8);
+          ls.forEach((l, li) => { chk(); pdf.text(l, M + 8, y); if (li < ls.length - 1) y += 5.5; }); y += 6;
+        });
+      }
 
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      const sources = [
-        "• Wikipedia - " + research.topic,
-        "• Google Scholar - Academic papers on " + research.topic,
-        "• News sources: BBC, Reuters, The Guardian",
-        "• ResearchGate - Latest publications",
-        "• arXiv - Preprint papers",
-        "• PubMed - Medical/scientific research",
-        "• IEEE Xplore - Technical papers",
-        "• JSTOR - Academic journals",
-      ];
+      // ── Next Steps ───────────────────────────────────────────────────
+      if (research.learning?.nextSteps?.length) {
+        heading("Recommended Next Steps");
+        research.learning.nextSteps.forEach((item, i) => {
+          chk();
+          pdf.setFont("helvetica", "bold"); pdf.setFontSize(10); pdf.setTextColor(0, 0, 0); pdf.text(`${i + 1}.`, M, y);
+          pdf.setFont("helvetica", "normal"); pdf.setTextColor(60, 60, 60);
+          const ls = pdf.splitTextToSize(stripMD(item), CW - 8);
+          ls.forEach((l, li) => { chk(); pdf.text(l, M + 8, y); if (li < ls.length - 1) y += 5.5; }); y += 6;
+        });
+      }
 
-      sources.forEach((source) => {
-        if (y > 270) {
-          pdf.addPage();
-          y = 20;
-        }
-        pdf.text(source, 15, y);
-        y += 7;
-      });
+      // ── Footer ───────────────────────────────────────────────────────
+      putPageNum();
+      pdf.setDrawColor(0, 0, 0); pdf.setLineWidth(0.5); pdf.line(M, H - 14, W - M, H - 14);
+      pdf.setFont("helvetica", "italic"); pdf.setFontSize(8); pdf.setTextColor(150, 150, 150);
+      pdf.text("Autonomous Research Scientist  \u00b7  ARS", M, H - 9);
 
-      const filename = `${research.topic.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_research_summary.pdf`;
-      pdf.save(filename);
-
-      pushLog(`PDF downloaded: ${filename}`, "good");
-    } catch (error) {
-      pushLog(`PDF generation failed: ${error.message}`, "bad");
+      const fn = `${research.topic.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_report.pdf`;
+      pdf.save(fn);
+      pushLog(`Report saved: ${fn}`, "good");
+    } catch (e) {
+      pushLog(`PDF generation failed: ${e.message}`, "bad");
     }
   }
 
   return (
-    <div
-      className="relative min-h-screen"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50 pointer-events-none" />
+    <div className="relative min-h-screen bg-lab-950 font-sans selection:bg-cyan-500/30">
+      {/* Animated grid background */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-20">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PHBhdGggZD0iTSAxMCAwIEwgMTAgNDAiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI2dyaWQpIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiLz48L3N2Zz4=')]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-lab-950 via-transparent to-lab-950" />
+      </div>
 
       <div className="relative z-10">
-        <div className="sticky top-0 z-30 bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-md border-b border-white/10">
+        <div className="sticky top-0 z-30 bg-black/40 backdrop-blur-md border-b border-white/10">
           <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-purple-400 to-pink-500 ring-1 ring-white/20 shadow-lg" />
+              <div className="h-10 w-10 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 flex items-center justify-center text-lg shadow-glow-cyan">
+                🔍
+              </div>
               <div>
                 <div className="text-sm font-semibold text-white flex items-center gap-2">
-                  🔍 Topic Research
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-600 text-white font-bold shadow-lg">
+                  Topic Research
+                  <span className="text-[9px] px-2 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 font-mono font-bold">
                     AGENTIC
                   </span>
                 </div>
-                <div className="text-xs text-slate-300">Search any topic → Auto-generate research insights</div>
+                <div className="text-xs text-white/50">Search any topic → Auto-generate research insights</div>
               </div>
             </div>
 
@@ -328,7 +344,7 @@ export default function SearchResearch() {
             <Card title="Search Topic" right={<Pill tone={searching ? "info" : "neutral"}>{searching ? "Researching…" : "Ready"}</Pill>}>
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-slate-800">What would you like to research?</label>
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-white/50">What would you like to research?</label>
                   <div className="mt-3 flex gap-2">
                     <input
                       type="text"
@@ -337,24 +353,24 @@ export default function SearchResearch() {
                       onKeyDown={handleKeyDown}
                       placeholder="e.g., Quantum Computing, Climate Change, Neural Networks…"
                       disabled={searching}
-                      className="flex-1 rounded-2xl bg-white ring-1 ring-slate-200 px-4 py-3 text-sm text-slate-800 outline-none focus:ring-purple-300 disabled:opacity-60"
+                      className="flex-1 rounded-xl bg-white/[0.03] border border-white/[0.1] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50 transition disabled:opacity-60 font-mono"
                     />
                     <button
                       type="button"
                       onClick={startResearch}
                       disabled={!topic.trim() || searching}
                       className={[
-                        "px-6 py-3 rounded-2xl font-semibold transition",
+                        "px-6 py-3 rounded-xl font-bold transition text-sm flex items-center gap-2",
                         !topic.trim() || searching
-                          ? "bg-slate-200 text-slate-500 cursor-not-allowed"
-                          : "bg-purple-600 text-white hover:bg-purple-700",
+                          ? "bg-white/[0.05] text-white/30 cursor-not-allowed"
+                          : "bg-cyan-500 text-black hover:bg-cyan-400 shadow-glow-cyan",
                       ].join(" ")}
                     >
                       {searching ? "Researching…" : "Research"}
                     </button>
                   </div>
-                  <div className="text-xs text-slate-600 mt-2">
-                    Press <span className="font-mono">Enter</span> or click Research button
+                  <div className="text-[10px] text-white/40 mt-3 font-mono">
+                    Press <span className="text-white/80">Enter</span> to initialize sequence
                   </div>
                 </div>
               </div>
@@ -363,7 +379,7 @@ export default function SearchResearch() {
             {research.topic && (
               <Card title={`Research: "${research.topic}"`} right={<Pill tone="info">Topic Summary</Pill>}>
                 <div className="space-y-4">
-                  <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+                  <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-4">
                     {[
                       { id: "overview", label: "Overview" },
                       { id: "knowledge", label: "Knowledge" },
@@ -377,10 +393,10 @@ export default function SearchResearch() {
                         type="button"
                         onClick={() => setActiveTab(tab.id)}
                         className={[
-                          "px-3 py-2 rounded-xl text-sm font-medium transition ring-1",
+                          "px-4 py-2 rounded-xl text-[11px] font-mono font-bold uppercase tracking-wider transition border",
                           activeTab === tab.id
-                            ? "bg-purple-600 text-white ring-purple-600"
-                            : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                            ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/30"
+                            : "bg-transparent text-white/50 border-transparent hover:bg-white/[0.05] hover:text-white/80",
                         ].join(" ")}
                       >
                         {tab.label}
@@ -390,9 +406,8 @@ export default function SearchResearch() {
 
                   {activeTab === "overview" && (
                     <div className="space-y-6">
-                      <div className="text-sm text-slate-600">
-                        <p className="font-semibold text-slate-900 mb-2">Research Summary</p>
-                        <p className="whitespace-pre-wrap">{research.final}</p>
+                      <div className="text-sm text-white/80">
+                        <MarkdownRenderer content={research.final} />
                       </div>
 
                       {research.final && (
@@ -569,20 +584,19 @@ export default function SearchResearch() {
                   type="button"
                   onClick={() => setLogs([])}
                   disabled={searching}
-                  className="px-3 py-2 rounded-xl text-sm bg-white hover:bg-slate-50 ring-1 ring-slate-200 text-slate-800 disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-white/60 disabled:opacity-50"
                 >
-                  Clear
+                  Clear Logs
                 </button>
               }
             >
-              <div className="h-[600px] overflow-auto rounded-2xl bg-white ring-1 ring-slate-200 p-4 space-y-2">
+              <div className="h-[600px] overflow-auto rounded-xl bg-black/60 border border-white/[0.05] p-4 space-y-2 font-mono">
                 {logs.length === 0 ? (
-                  <div className="text-sm text-slate-600">Search a topic above to start the research cycle…</div>
+                  <div className="text-[11px] text-white/30 text-center mt-10">System idle. Awaiting topic...</div>
                 ) : (
                   logs.map((l, i) => (
-                    <div key={i} className="text-xs">
-                      <span className="text-slate-400">{l.ts.slice(11, 19)}</span>
-                      <span className="text-slate-300"> • </span>
+                    <div key={i} className="text-[11px] flex items-start gap-2">
+                      <span className="text-white/30 shrink-0">[{l.ts.slice(11, 19)}]</span>
                       <span className={toneToClass(l.tone)}>{l.msg}</span>
                     </div>
                   ))

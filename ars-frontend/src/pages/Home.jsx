@@ -7,7 +7,7 @@ import { Canvas } from "@react-three/fiber";
 import { Center, Environment, OrbitControls, useGLTF } from "@react-three/drei";
 
 import { SoundButton } from "../context/SoundContext";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 
 import {
   ArrowRight,
@@ -17,7 +17,10 @@ import {
   Layers,
   ExternalLink,
   Send,
+  Activity
 } from "lucide-react";
+
+import { RevealOnScroll, StaggerContainer, StaggerItem, CountUp } from "../components/ScrollReveal";
 
 import heroBg from "../assets/image.png";
 
@@ -32,190 +35,132 @@ import ars2 from "../assets/gap.jpg";
 import ars3 from "../assets/exp.jpg";
 import ars4 from "../assets/trace.png";
 
-/* ---------------- animations ---------------- */
-const fadeUp = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
-};
-
-const Pill = ({ children }) => (
-  <span className="text-xs px-3 py-1.5 rounded-full bg-white/80 text-zinc-700 border border-zinc-200 backdrop-blur hover:bg-white transition">
-    {children}
-  </span>
-);
-
-const MiniTag = ({ children }) => (
-  <span className="text-[11px] px-3 py-1.5 rounded-full bg-zinc-100 text-zinc-700 border border-zinc-200 hover:bg-zinc-200/60 transition">
-    {children}
-  </span>
-);
-
 /* ---------------- Chat Panel ---------------- */
-function ChatPanel({
-  listRef,
-  messages,
-  busy,
-  input,
-  setInput,
-  sendMessage,
-  onKeyDown,
-  onBack,
-}) {
+function ChatPanel({ listRef, messages, busy, input, setInput, sendMessage, onKeyDown, onBack }) {
   return (
-    <div className="rounded-3xl border border-zinc-200 bg-[#ffe6dc] overflow-hidden">
-      <div
-        ref={listRef}
-        className="h-[420px] sm:h-[520px] overflow-y-auto p-4 space-y-3 max-w-[50ch]"
-      >
+    <div className="rounded-3xl border border-white/[0.1] bg-black/40 backdrop-blur-xl overflow-hidden shadow-glow-cyan">
+      <div ref={listRef} className="h-[420px] sm:h-[520px] overflow-y-auto p-4 space-y-4 font-mono text-xs">
         {messages.map((m, idx) => {
           const isUser = m.role === "user";
           return (
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
               key={idx}
               className={`flex ${isUser ? "justify-end" : "justify-start"}`}
             >
-              <div
-                className={`w-full max-w-full rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+              <div className={`max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed border ${
                   isUser
-                    ? "bg-white border-2 border-black text-black"
-                    : "bg-white/80 border border-zinc-200 text-zinc-800"
+                    ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-50"
+                    : "bg-white/[0.05] border-white/[0.1] text-white/80"
                 }`}
               >
                 {m.text}
               </div>
-            </div>
+            </motion.div>
           );
         })}
-
-        {busy ? (
+        {busy && (
           <div className="flex justify-start">
-            <div className="max-w-[70%] rounded-2xl px-4 py-3 text-sm bg-white/80 border border-zinc-200 text-zinc-700">
-              Cora is thinking…
+            <div className="max-w-[70%] rounded-2xl px-4 py-3 bg-white/[0.05] border border-white/[0.1] text-cyan-400 animate-pulse flex items-center gap-2">
+              <span className="h-2 w-2 bg-cyan-400 rounded-full" /> Synthesizing data...
             </div>
           </div>
-        ) : null}
+        )}
       </div>
 
-      <div className="border-t border-zinc-200 bg-white/60 p-3">
+      <div className="border-t border-white/[0.1] bg-black/60 p-3">
         <div className="flex items-center gap-2">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             rows={1}
-            placeholder="Ask anything…"
-            className="flex-1 max-w-[50ch] resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-800 outline-none focus:border-black"
+            placeholder="Initialize query..."
+            className="flex-1 resize-none rounded-2xl border border-white/[0.1] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500/50 focus:bg-white/[0.05] transition-all font-mono"
           />
           <button
             type="button"
             onClick={sendMessage}
             disabled={busy}
-            className="inline-flex items-center gap-2 rounded-2xl border-2 border-black bg-black text-white px-4 py-3 text-sm font-semibold hover:bg-zinc-900 transition disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 text-black px-4 py-3 text-sm font-bold hover:bg-cyan-400 transition hover:shadow-glow-cyan disabled:opacity-50"
           >
-            Send <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" />
           </button>
         </div>
-
-        <div className="mt-2 text-[11px] text-zinc-600">
-          Powered by Gemini • Cognova (ARS)
-        </div>
-
-        <div className="mt-3 text-center">
-          <button
-            type="button"
-            className="text-sm underline text-zinc-700"
-            onClick={onBack}
-          >
-            ← Back to avatar
+        <div className="mt-3 flex justify-between items-center px-2">
+          <button type="button" className="text-[10px] uppercase tracking-wider text-white/40 hover:text-white transition" onClick={onBack}>
+            ← System Interface
           </button>
+          <div className="text-[10px] text-white/30 font-mono">STATUS: ONLINE</div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ✅ FeatureCard with image + step */
+/* ✅ FeatureCard */
 const FeatureCard = ({ img, icon: Icon, title, desc, index }) => (
-  <motion.div
-    variants={fadeUp}
-    className="group rounded-3xl border border-zinc-200 bg-white overflow-hidden
-               shadow-[0_14px_50px_-35px_rgba(0,0,0,0.25)]
-               hover:shadow-[0_28px_90px_-45px_rgba(0,0,0,0.35)]
-               hover:-translate-y-1 transition-all duration-300"
-  >
-    <div className="relative h-44 overflow-hidden">
+  <StaggerItem className="group relative rounded-[2rem] border border-white/[0.08] bg-black/40 backdrop-blur-md overflow-hidden transition-all duration-500 hover:border-cyan-500/30 hover:shadow-glow-cyan">
+    <div className="relative h-56 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent z-10" />
       <img
         src={img}
         alt={title}
-        className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.05]"
+        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-70 group-hover:opacity-100"
       />
-      <div className="absolute top-4 left-4 bg-black text-white text-xs px-3 py-1 rounded-full font-semibold">
-        0{index}
+      <div className="absolute top-6 left-6 z-20 flex items-center gap-3">
+        <div className="h-8 w-8 rounded-full border border-white/20 bg-white/10 backdrop-blur flex items-center justify-center text-xs font-mono font-bold text-white">
+          0{index}
+        </div>
+        <div className="h-[1px] w-12 bg-white/20 group-hover:w-24 group-hover:bg-cyan-500 transition-all duration-700" />
       </div>
-      <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-transparent" />
     </div>
 
-    <div className="p-6">
-      <div className="flex items-center gap-3">
-        <span className="h-10 w-10 rounded-2xl border border-zinc-200 bg-zinc-50 grid place-items-center">
-          <Icon className="h-5 w-5 text-zinc-900" />
+    <div className="p-8 relative z-20 -mt-8">
+      <div className="flex items-center gap-4 mb-4">
+        <span className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center justify-center shadow-lg">
+          <Icon className="h-6 w-6 text-cyan-400" />
         </span>
-        <div className="text-lg font-semibold text-zinc-900">{title}</div>
+        <h3 className="text-xl font-display font-semibold text-white group-hover:text-cyan-50 transition-colors">
+          {title}
+        </h3>
       </div>
-      <p className="mt-3 text-sm text-zinc-600 leading-relaxed">{desc}</p>
+      <p className="text-white/60 leading-relaxed text-sm">
+        {desc}
+      </p>
     </div>
-  </motion.div>
+  </StaggerItem>
 );
 
 /* ✅ TopicCard */
 const TopicCard = ({ title, desc, href, tags = [] }) => (
-  <motion.a
-    variants={fadeUp}
-    href={href}
-    target="_blank"
-    rel="noreferrer"
-    className="group relative rounded-3xl bg-white border-2 border-black overflow-hidden
-               shadow-[0_10px_30px_-15px_rgba(0,0,0,0.18)]
-               hover:-translate-y-1 hover:shadow-[0_22px_65px_-22px_rgba(0,0,0,0.32)]
-               transition-all duration-300"
-  >
-    <div className="absolute top-0 left-0 h-[3px] w-full bg-black" />
-    <div className="relative p-7">
-      <div className="flex items-start justify-between gap-3">
-        <h4 className="text-lg font-semibold text-black tracking-tight leading-snug">
-          {title}
-        </h4>
-        <ExternalLink className="h-4 w-4 text-zinc-500 group-hover:text-black transition mt-1" />
-      </div>
-
-      <p className="mt-4 text-sm text-zinc-600 leading-relaxed line-clamp-4">
-        {desc}
-      </p>
-
-      {tags?.length ? (
-        <div className="mt-5 flex flex-wrap gap-2">
-          {tags.map((t) => (
-            <span
-              key={t}
-              className="text-[11px] px-3 py-1 rounded-full border border-black bg-white text-black
-                         group-hover:bg-black group-hover:text-white transition"
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="mt-6 flex items-center justify-between">
-        <span className="text-xs text-zinc-500">Open on Wikipedia</span>
-        <span className="inline-flex items-center gap-2 text-sm font-semibold text-black">
-          Read <ArrowRight className="h-4 w-4" />
-        </span>
-      </div>
-
-      <div className="mt-5 h-[2px] w-12 bg-black group-hover:w-full transition-all duration-500" />
+  <StaggerItem className="group relative rounded-3xl bg-white/[0.02] border border-white/[0.08] overflow-hidden transition-all duration-500 hover:border-purple-500/30 hover:shadow-glow-purple backdrop-blur-sm p-8">
+    <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+    
+    <div className="flex justify-between items-start mb-6">
+      <h4 className="text-xl font-display font-semibold text-white leading-tight pr-4">
+        {title}
+      </h4>
+      <ExternalLink className="h-5 w-5 text-white/30 group-hover:text-purple-400 transition shrink-0" />
     </div>
-  </motion.a>
+
+    <p className="text-sm text-white/60 leading-relaxed mb-6 line-clamp-3">
+      {desc}
+    </p>
+
+    <div className="flex flex-wrap gap-2 mb-8">
+      {tags.map((t) => (
+        <span key={t} className="text-[10px] px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-white/50 group-hover:border-purple-500/20 group-hover:text-purple-300 transition uppercase tracking-wider font-semibold">
+          {t}
+        </span>
+      ))}
+    </div>
+
+    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-white/80 group-hover:text-white transition">
+      Explore Concept <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+    </a>
+  </StaggerItem>
 );
 
 /* ===================== 3D MODEL ===================== */
@@ -223,7 +168,7 @@ function Model() {
   const { scene } = useGLTF("/models/pixellabs-robot-character-3317.glb");
   return (
     <Center>
-      <primitive object={scene} scale={1.85} />
+      <primitive object={scene} scale={2} />
     </Center>
   );
 }
@@ -233,23 +178,13 @@ class ModelErrorBoundary extends React.Component {
     super(props);
     this.state = { hasError: false };
   }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
+  static getDerivedStateFromError() { return { hasError: true }; }
   render() {
-    if (this.state.hasError) {
-      return (
-        <div className="w-full h-full flex flex-col items-center justify-center text-sm text-red-600 bg-white">
-          <div className="font-semibold">3D model failed to load</div>
-          <div className="mt-1 text-xs text-zinc-600">
-            Check file path:{" "}
-            <span className="font-mono">
-              /models/pixellabs-robot-character-3317.glb
-            </span>
-          </div>
-        </div>
-      );
-    }
+    if (this.state.hasError) return (
+      <div className="w-full h-full flex flex-col items-center justify-center text-sm text-rose-400 font-mono">
+        <div>[System Error: Model failed to load]</div>
+      </div>
+    );
     return this.props.children;
   }
 }
@@ -257,59 +192,23 @@ useGLTF.preload("/models/pixellabs-robot-character-3317.glb");
 
 /* ===================== HOME ===================== */
 export default function Home() {
-  const TRENDING_TOPICS = useMemo(
-    () => [
-      {
-        title: "Retrieval-Augmented Generation (RAG)",
-        desc: "Ground LLM outputs using external knowledge sources (docs, PDFs, DBs) to reduce hallucinations and improve accuracy.",
-        href: "https://en.wikipedia.org/wiki/Retrieval-augmented_generation",
-        tags: ["LLMs", "Search", "Knowledge"],
-      },
-      {
-        title: "Agentic AI",
-        desc: "Autonomous systems that plan, use tools, take actions, and iterate toward a goal with feedback and memory.",
-        href: "https://en.wikipedia.org/wiki/Intelligent_agent",
-        tags: ["Tools", "Planning", "Autonomy"],
-      },
-      {
-        title: "Causal Inference",
-        desc: "Methods to estimate cause-effect relationships (not just correlations) for better decisions and experiments.",
-        href: "https://en.wikipedia.org/wiki/Causal_inference",
-        tags: ["Experiments", "Statistics", "Impact"],
-      },
-      {
-        title: "Graph Neural Networks (GNNs)",
-        desc: "Neural models for graph-structured data—useful for citations, knowledge graphs, molecules, networks, and recommendations.",
-        href: "https://en.wikipedia.org/wiki/Graph_neural_network",
-        tags: ["Graphs", "Deep Learning"],
-      },
-      {
-        title: "Diffusion Models",
-        desc: "Generative models powering modern image synthesis and increasingly used for video, audio, and scientific design tasks.",
-        href: "https://en.wikipedia.org/wiki/Diffusion_model",
-        tags: ["Generative", "Synthesis"],
-      },
-      {
-        title: "Federated Learning",
-        desc: "Train models across many devices/clients without moving raw data—useful for privacy-preserving ML at scale.",
-        href: "https://en.wikipedia.org/wiki/Federated_learning",
-        tags: ["Privacy", "Distributed"],
-      },
-    ],
-    []
-  );
+  const { scrollYProgress } = useScroll();
+  const yHeroBg = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
+  
+  const TRENDING_TOPICS = useMemo(() => [
+    { title: "Retrieval-Augmented Generation (RAG)", desc: "Ground LLM outputs using external knowledge sources to reduce hallucinations and improve accuracy.", href: "https://en.wikipedia.org/wiki/Retrieval-augmented_generation", tags: ["LLMs", "Search"] },
+    { title: "Agentic AI", desc: "Autonomous systems that plan, use tools, take actions, and iterate toward a goal with feedback and memory.", href: "https://en.wikipedia.org/wiki/Intelligent_agent", tags: ["Autonomy", "Agents"] },
+    { title: "Causal Inference", desc: "Methods to estimate cause-effect relationships for better decisions and experiments.", href: "https://en.wikipedia.org/wiki/Causal_inference", tags: ["Statistics", "Impact"] },
+    { title: "Graph Neural Networks (GNNs)", desc: "Neural models for graph-structured data—useful for citations, knowledge graphs, and networks.", href: "https://en.wikipedia.org/wiki/Graph_neural_network", tags: ["Graphs", "Deep Learning"] },
+    { title: "Diffusion Models", desc: "Generative models powering modern image synthesis and increasingly used for scientific design tasks.", href: "https://en.wikipedia.org/wiki/Diffusion_model", tags: ["Generative"] },
+    { title: "Federated Learning", desc: "Train models across many devices/clients without moving raw data—useful for privacy ML.", href: "https://en.wikipedia.org/wiki/Federated_learning", tags: ["Privacy", "Distributed"] },
+  ], []);
 
-  // Chat state
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      text: "Hi 👋 I’m Cora. Drop your goal prompt and I’ll start a Cognova research cycle.",
-    },
+    { role: "assistant", text: "System online. Initializing ARS protocols. How can I assist your research today?" },
   ]);
-
-  // avatar OR chat
   const [showChat, setShowChat] = useState(false);
   const listRef = useRef(null);
 
@@ -320,556 +219,236 @@ export default function Home() {
   async function sendMessage() {
     const text = input.trim();
     if (!text || busy) return;
-
     const history = messages.slice(-8).map((x) => ({ role: x.role, text: x.text }));
-
-    setInput("");
-    setMessages((m) => [...m, { role: "user", text }]);
-    setBusy(true);
+    setInput(""); setMessages((m) => [...m, { role: "user", text }]); setBusy(true);
 
     try {
       const res = await fetch("http://localhost:5050/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, history }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data?.detail || data?.error || "Failed to get reply");
-
       setMessages((m) => [...m, { role: "assistant", text: data.reply }]);
     } catch (e) {
-      setMessages((m) => [
-        ...m,
-        {
-          role: "assistant",
-          text: `⚠️ Error: ${e.message}\n\nMake sure the backend is running on http://localhost:5050`,
-        },
-      ]);
+      setMessages((m) => [...m, { role: "assistant", text: `[ERR]: Backend connection failed.` }]);
     } finally {
       setBusy(false);
     }
   }
 
-  function onKeyDown(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  }
-
-  /* ✅ Trending (compact by default, expand on click) */
-  const [topicsOpen, setTopicsOpen] = useState(false);
-  const [topicFilter, setTopicFilter] = useState("All");
-  const [topicQuery, setTopicQuery] = useState("");
-
-  const filteredTopics = useMemo(() => {
-    const q = topicQuery.trim().toLowerCase();
-
-    const byQuery = !q
-      ? TRENDING_TOPICS
-      : TRENDING_TOPICS.filter(
-          (t) =>
-            t.title.toLowerCase().includes(q) ||
-            t.desc.toLowerCase().includes(q) ||
-            (t.tags || []).some((x) => x.toLowerCase().includes(q))
-        );
-
-    if (topicFilter === "All") return byQuery;
-
-    const map = {
-      "Gen AI": ["generative", "diffusion", "synthesis"],
-      LLMs: ["llms", "rag", "transformers"],
-      Graphs: ["graphs", "gnn"],
-      Privacy: ["privacy", "federated"],
-      Stats: ["statistics", "experiments", "impact", "causal"],
-    };
-
-    const keys = map[topicFilter] || [];
-    return byQuery.filter((t) =>
-      (t.tags || []).some((tag) =>
-        keys.some((k) => tag.toLowerCase().includes(k))
-      )
-    );
-  }, [TRENDING_TOPICS, topicQuery, topicFilter]);
+  function onKeyDown(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
 
   return (
-    <div className="min-h-screen bg-[#f6f0e6]">
-      {/* Soft background */}
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(251,191,36,0.14),transparent_55%),radial-gradient(circle_at_80%_20%,rgba(168,85,247,0.12),transparent_60%),radial-gradient(circle_at_55%_70%,rgba(59,130,246,0.10),transparent_60%)]" />
+    <div className="min-h-screen bg-lab-950 text-white selection:bg-cyan-500/30 overflow-hidden font-sans">
+      
+      {/* Animated grid background */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-20">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PHBhdGggZD0iTSAxMCAwIEwgMTAgNDAiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI2dyaWQpIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiLz48L3N2Zz4=')]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-lab-950 via-transparent to-lab-950" />
       </div>
 
       <Navbar />
 
-      {/* ================= HERO ================= */}
-      <section className="relative">
-        <div className="mx-auto max-w-6xl px-4 pt-10 pb-10 md:pt-14">
-          <div className="relative overflow-hidden rounded-[40px] border border-white/60 bg-white/55 backdrop-blur-xl shadow-[0_30px_90px_-55px_rgba(0,0,0,0.45)]">
-            <div
-              className="absolute inset-0 opacity-70"
-              style={{
-                backgroundImage: `url(${heroBg})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-white/55 via-white/70 to-white/90" />
+      {/* ================= HERO (PARALLAX) ================= */}
+      <section className="relative min-h-[90vh] flex items-center justify-center pt-20 pb-32">
+        <motion.div style={{ y: yHeroBg }} className="absolute inset-0 z-0 opacity-40 mix-blend-screen pointer-events-none">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(0,240,255,0.15),transparent_60%),radial-gradient(circle_at_80%_60%,rgba(168,85,247,0.1),transparent_50%)]" />
+        </motion.div>
 
-            <div className="relative px-6 py-12 md:px-12 md:py-16">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-                {/* Left */}
-                <div className="pt-2">
-                  <div className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border-2 border-zinc-900 bg-white/80 text-zinc-900 backdrop-blur">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    Cognova — Powered by ARS
-                  </div>
+        <div className="relative z-10 mx-auto max-w-7xl px-6 w-full grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
+          
+          <div className="lg:col-span-7">
+            <RevealOnScroll direction="up" delay={0.1}>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-xs font-mono font-bold mb-8 uppercase tracking-widest shadow-glow-cyan">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                </span>
+                System v2.0 Online
+              </div>
+            </RevealOnScroll>
 
-                  <h1 className="mt-5 text-4xl md:text-6xl font-semibold tracking-tight text-zinc-900 leading-[1.05]">
-                    Advancing knowledge
-                    <br className="hidden md:block" />
-                    through research.
-                  </h1>
+            <RevealOnScroll direction="up" delay={0.2}>
+              <h1 className="text-6xl sm:text-7xl lg:text-[5.5rem] font-display font-bold leading-[1.05] tracking-tight mb-6">
+                Automating <br/>
+                <span className="shimmer-text">Scientific Discovery.</span>
+              </h1>
+            </RevealOnScroll>
 
-                  <p className="mt-4 text-zinc-700 max-w-xl leading-relaxed">
-                    A multi-agent research system that reads literature, proposes hypotheses,
-                    designs experiments, evaluates results, and improves iteratively — with full explainability.
-                  </p>
+            <RevealOnScroll direction="up" delay={0.3}>
+              <p className="text-lg text-white/60 max-w-2xl leading-relaxed mb-10 font-light">
+                ARS is a 7-agent neural framework that ingests raw literature, 
+                detects knowledge gaps, proposes novel hypotheses, runs automated 
+                experiments, and synthesizes data—all with full statistical transparency.
+              </p>
+            </RevealOnScroll>
 
-                  <div className="mt-7 flex flex-col sm:flex-row gap-3">
-                    <SoundButton
-                      className="group relative inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-zinc-900 text-white font-semibold transition overflow-hidden
-                                 hover:-translate-y-0.5 hover:shadow-[0_18px_60px_-35px_rgba(0,0,0,0.55)]"
-                      onClick={() => (window.location.href = "/app")}
-                    >
-                      <span className="relative flex items-center gap-2">
-                        Start Research Cycle <ArrowRight className="h-4 w-4" />
-                      </span>
-                    </SoundButton>
-
-                 
-                  </div>
+            <RevealOnScroll direction="up" delay={0.4}>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <SoundButton
+                  className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-white text-black font-bold text-sm transition-all overflow-hidden hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.3)]"
+                  onClick={() => (window.location.href = "/app")}
+                >
+                  <span>Initialize Pipeline</span>
+                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </SoundButton>
+                <Link
+                  to="/about"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full border border-white/20 bg-white/5 text-white font-bold text-sm hover:bg-white/10 transition-all backdrop-blur"
+                >
+                  Read the Paper
+                </Link>
+              </div>
+            </RevealOnScroll>
+            
+            <RevealOnScroll direction="up" delay={0.6}>
+              <div className="mt-16 flex items-center gap-8 border-t border-white/10 pt-8">
+                <div>
+                  <div className="text-3xl font-mono font-bold text-cyan-400"><CountUp value={7} />+</div>
+                  <div className="text-[10px] uppercase tracking-widest text-white/40 mt-1">Specialized Agents</div>
                 </div>
-
-                {/* Right panel */}
-                <div className="hidden lg:block">
-                  <div className="relative rounded-3xl bg-black text-white p-8 shadow-[0_30px_90px_-40px_rgba(0,0,0,0.6)] overflow-hidden">
-                    <div className="text-lg font-semibold tracking-tight">
-                      Autonomous Research Cycle
-                    </div>
-
-                    <p className="mt-3 text-sm text-white/80 leading-relaxed">
-                      One goal prompt → a complete cycle: ingest sources, find gaps, propose hypotheses,
-                      design experiments, analyze results, and log every decision for transparency.
-                    </p>
-
-                    <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-                      <div className="text-xs text-white/60 mb-3">Pipeline</div>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {["Ingest", "Extract", "Gap", "Hypothesis", "Experiment", "Analyze", "Validate", "Learn"].map(
-                          (s) => (
-                            <span
-                              key={s}
-                              className="px-3 py-1.5 rounded-full border border-white/15 bg-white/10 text-white/85 hover:bg-white/20 transition"
-                            >
-                              {s}
-                            </span>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <div className="w-px h-10 bg-white/10" />
+                <div>
+                  <div className="text-3xl font-mono font-bold text-purple-400"><CountUp value={100} suffix="%" /></div>
+                  <div className="text-[10px] uppercase tracking-widest text-white/40 mt-1">Traceable Reasoning</div>
+                </div>
+                <div className="w-px h-10 bg-white/10 hidden sm:block" />
+                <div className="hidden sm:block">
+                  <div className="text-3xl font-mono font-bold text-emerald-400">Groq</div>
+                  <div className="text-[10px] uppercase tracking-widest text-white/40 mt-1">LPU Inference</div>
                 </div>
               </div>
+            </RevealOnScroll>
+          </div>
+
+          <div className="lg:col-span-5 relative">
+            <RevealOnScroll direction="left" delay={0.3}>
+              <div className="relative z-10 w-full aspect-square rounded-[3rem] border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-1 backdrop-blur-xl shadow-2xl">
+                <div className="absolute inset-0 bg-cyan-500/5 blur-3xl rounded-full" />
+                <div className="w-full h-full rounded-[2.5rem] bg-black/60 overflow-hidden relative">
+                  
+                  {/* Avatar / Chat logic inside Hero */}
+                  {showChat ? (
+                    <div className="absolute inset-0 z-20">
+                      <ChatPanel
+                        listRef={listRef} messages={messages} busy={busy}
+                        input={input} setInput={setInput} sendMessage={sendMessage}
+                        onKeyDown={onKeyDown} onBack={() => setShowChat(false)}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="absolute top-6 left-6 right-6 flex justify-between items-center z-10">
+                        <div>
+                          <div className="text-xs font-bold text-white tracking-widest uppercase">CORA.v2</div>
+                          <div className="text-[10px] text-cyan-400 font-mono">IDLE / AWAITING INPUT</div>
+                        </div>
+                        <Activity className="text-cyan-500 h-5 w-5 animate-pulse" />
+                      </div>
+                      
+                      <ModelErrorBoundary>
+                        <Canvas camera={{ position: [0, 1.1, 2.35], fov: 34 }}>
+                          <ambientLight intensity={0.95} />
+                          <directionalLight position={[6, 6, 6]} intensity={1.6} />
+                          <Environment preset="city" />
+                          <Suspense fallback={null}><Model /></Suspense>
+                          <OrbitControls enablePan={false} autoRotate autoRotateSpeed={2.5} maxDistance={4} minDistance={2} />
+                        </Canvas>
+                      </ModelErrorBoundary>
+
+                      <div className="absolute bottom-6 left-6 right-6 z-10">
+                        <button onClick={() => setShowChat(true)} className="w-full py-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-sm font-bold text-white hover:bg-white/20 transition-all shadow-[0_0_30px_rgba(0,240,255,0.1)] flex items-center justify-center gap-3 group">
+                          Establish Uplink <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </RevealOnScroll>
+          </div>
+
+        </div>
+      </section>
+
+      {/* ================= ARCHITECTURE PIPELINE ================= */}
+      <section className="py-32 relative border-t border-white/5 bg-black/40">
+        <div className="max-w-7xl mx-auto px-6">
+          <RevealOnScroll direction="up">
+            <div className="text-center max-w-3xl mx-auto mb-20">
+              <h2 className="text-[10px] font-mono text-cyan-400 font-bold uppercase tracking-widest mb-4">Core Architecture</h2>
+              <h3 className="text-4xl md:text-5xl font-display font-bold leading-tight mb-6">The 7-Agent Research Cycle</h3>
+              <p className="text-white/50 text-lg font-light">From raw document ingestion to statistically validated conclusions, every phase is handled by specialized neural nodes.</p>
             </div>
+          </RevealOnScroll>
+
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <FeatureCard img={ars1} icon={Sparkles} index={1} title="Literature Extraction" desc="Processes complex PDFs and extracts variables, methodologies, and findings via dense retrieval." />
+            <FeatureCard img={ars2} icon={ShieldCheck} index={2} title="Hypothesis Gen" desc="Identifies contradictions and knowledge gaps to formulate mathematically testable predictions." />
+            <FeatureCard img={ars3} icon={Layers} index={3} title="Experiment Design" desc="Architects simulation protocols, defines control variables, and establishes baseline metrics." />
+            <FeatureCard img={ars4} icon={TimerReset} index={4} title="Validation & Proof" desc="Executes rigorous statistical checks (p-values) and flags potential data leakage." />
+          </StaggerContainer>
+        </div>
+      </section>
+
+      {/* ================= DATA PROCESSING / EXPLORE ================= */}
+      <section className="py-32 relative">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+          <div>
+            <RevealOnScroll direction="left">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <img src={explore1} alt="Vis 1" className="w-full h-48 object-cover rounded-3xl border border-white/10" />
+                  <img src={explore3} alt="Vis 3" className="w-full h-64 object-cover rounded-3xl border border-white/10" />
+                </div>
+                <div className="space-y-4 mt-8">
+                  <img src={explore2} alt="Vis 2" className="w-full h-64 object-cover rounded-3xl border border-white/10" />
+                  <img src={explore4} alt="Vis 4" className="w-full h-48 object-cover rounded-3xl border border-white/10" />
+                </div>
+              </div>
+            </RevealOnScroll>
+          </div>
+          
+          <div>
+            <RevealOnScroll direction="right">
+              <h2 className="text-[10px] font-mono text-purple-400 font-bold uppercase tracking-widest mb-4">Deep Analytics</h2>
+              <h3 className="text-4xl md:text-5xl font-display font-bold leading-tight mb-6">Beyond text generation. Real statistics.</h3>
+              <p className="text-white/60 text-lg leading-relaxed font-light mb-8">
+                Unlike standard LLMs that generate superficial summaries, ARS actively processes metrics. 
+                It creates heatmaps of attention weights, computes statistical significance (p-values) against baselines, 
+                and visualizes probability distributions for its findings.
+              </p>
+              <ul className="space-y-4 mb-10">
+                {['Attention Matrix Visualization', 'Confidence Distribution Plots', 'Automated A/B Testing Protocols'].map(item => (
+                  <li key={item} className="flex items-center gap-3 text-white/80 text-sm font-medium">
+                    <span className="h-5 w-5 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs">✓</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Link to="/app" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-500 text-white font-bold hover:bg-purple-400 transition hover:shadow-glow-purple">
+                View Live Dashboard <ArrowRight className="h-4 w-4" />
+              </Link>
+            </RevealOnScroll>
           </div>
         </div>
       </section>
 
-      {/* ================= MAIN CONTENT ================= */}
-      <section className="bg-white/70 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-14">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-            {/* Left hub */}
-            <motion.div
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              variants={fadeUp}
-              className="lg:col-span-6"
-            >
-              <div className="rounded-3xl border border-zinc-200 bg-white p-10 shadow-[0_20px_70px_-55px_rgba(0,0,0,0.35)]">
-                
+      {/* ================= TRENDING ================= */}
+      <section className="py-32 bg-black/60 border-t border-white/5 relative">
+        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
+        <div className="max-w-7xl mx-auto px-6">
+          <RevealOnScroll direction="up" className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">Explore Research Vectors</h2>
+            <p className="text-white/50">Current high-velocity topics traversing the ARS pipeline.</p>
+          </RevealOnScroll>
 
-                <h2 className="mt-5 text-4xl md:text-5xl font-extrabold text-zinc-950 tracking-tight leading-[1.05]">
-                  A hub for research <br /> and discovery
-                </h2>
-
-                <p className="mt-4 text-zinc-700 leading-relaxed text-[15px]">
-                  Give a goal prompt once — ARS runs end-to-end research cycles autonomously, while keeping everything
-                  explainable via decision logs and reasoning traces.
-                </p>
-
-                <div className="mt-5 rounded-2xl border border-zinc-900/10 bg-zinc-50 px-4 py-3">
-                  <p className="text-sm text-zinc-800 italic leading-relaxed">
-                    “One prompt in. A full research cycle out — with traceable reasoning at every step.”
-                  </p>
-                </div>
-
-                <div className="mt-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-5">
-                    <div className="flex items-center gap-2 font-semibold text-zinc-900">
-                      <Layers className="h-4 w-4" /> Multi-agent pipeline
-                    </div>
-                    <div className="mt-1 text-sm text-zinc-600">Modular, scalable architecture</div>
-                  </div>
-                  <div className="rounded-2xl border border-zinc-200 bg-white p-5">
-                    <div className="flex items-center gap-2 font-semibold text-zinc-900">
-                      <ShieldCheck className="h-4 w-4" /> Explainable outputs
-                    </div>
-                    <div className="mt-1 text-sm text-zinc-600">Decision logs + reasoning traces</div>
-                  </div>
-                </div>
-
-                <Link
-                  to="/about"
-                  className="mt-8 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-zinc-900 text-white font-semibold hover:bg-zinc-800 hover:shadow-lg hover:-translate-y-0.5 transition"
-                >
-                  Explore usage <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </motion.div>
-
-            {/* Right: avatar OR chat */}
-            <motion.div
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              variants={fadeUp}
-              className="lg:col-span-6"
-            >
-              <div className="relative">
-                <div className="pointer-events-none absolute -inset-8 -z-10">
-                  <div className="absolute inset-0 rounded-[48px] bg-gradient-to-br from-rose-200/45 via-purple-200/30 to-sky-200/40 blur-2xl" />
-                </div>
-
-                <div className="rounded-[40px] border-2 border-black bg-white shadow-[0_26px_90px_-60px_rgba(0,0,0,0.45)] overflow-hidden">
-                  <div className="px-6 pt-6 pb-4 border-b border-zinc-200 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-extrabold text-black">Cora</div>
-                      <div className="text-xs text-zinc-500">Your Cognova research assistant</div>
-                    </div>
-                    <span className="text-[11px] px-3 py-1 rounded-full border-2 border-black bg-white text-black font-semibold">
-                      Online
-                    </span>
-                  </div>
-
-                  <div className="p-6">
-                    {showChat ? (
-                      <ChatPanel
-                        listRef={listRef}
-                        messages={messages}
-                        busy={busy}
-                        input={input}
-                        setInput={setInput}
-                        sendMessage={sendMessage}
-                        onKeyDown={onKeyDown}
-                        onBack={() => setShowChat(false)}
-                      />
-                    ) : (
-                      <>
-                        <div className="rounded-3xl border-2 border-black bg-white overflow-hidden">
-                          <div className="h-[620px] w-full">
-                            <ModelErrorBoundary>
-                              <Canvas camera={{ position: [0, 1.1, 2.35], fov: 34 }}>
-                                <ambientLight intensity={0.95} />
-                                <directionalLight position={[6, 6, 6]} intensity={1.6} />
-                                <directionalLight position={[-5, 4, 2]} intensity={0.9} />
-
-                                <Suspense fallback={null}>
-                                  <Model />
-                                  <Environment preset="studio" />
-                                </Suspense>
-
-                                {/* ✅ SPEED UP ROTATION + DRAG FEEL */}
-                                <OrbitControls
-                                  enablePan={false}
-                                  enableZoom={true}
-                                  minDistance={1.9}
-                                  maxDistance={3.6}
-                                  autoRotate
-                                  autoRotateSpeed={1.8}  // 🔥 was slow, now medium-fast
-                                  rotateSpeed={1.15}     // faster drag rotate
-                                  zoomSpeed={1.1}
-                                  enableDamping
-                                  dampingFactor={0.06}
-                                />
-                              </Canvas>
-                            </ModelErrorBoundary>
-                          </div>
-
-                          <div className="px-4 py-3 border-t border-zinc-200 flex items-center justify-between text-sm">
-                            <div className="text-black font-semibold">Interactive 3D agent</div>
-                            <div className="text-zinc-500">Drag • Scroll • Rotate</div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 text-center">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-2 rounded-2xl border-2 border-black bg-black text-white px-4 py-2 text-sm font-semibold hover:bg-zinc-900 transition"
-                            onClick={() => setShowChat(true)}
-                          >
-                            Chat <ArrowRight className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-
-                    <div className="mt-4 text-[11px] text-zinc-500">
-                      Tip: Ask for: “Summarize this paper”, “Generate hypotheses”, “Design an experiment”, “Make a research plan”.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Enrich section */}
-          <div className="mt-16">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-              <motion.div
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true }}
-                variants={fadeUp}
-                className="lg:col-span-6"
-              >
-                <div className="relative group">
-                  <div className="grid grid-cols-6 gap-3">
-                    {[
-                      { src: explore1, span: "col-span-3", h: "h-44" },
-                      { src: explore2, span: "col-span-3", h: "h-44" },
-                      { src: explore3, span: "col-span-2", h: "h-28" },
-                      { src: explore4, span: "col-span-2", h: "h-28" },
-                      { src: explore5, span: "col-span-2", h: "h-28" },
-                    ].map((img, idx) => (
-                      <div key={idx} className={img.span}>
-                        <img
-                          src={img.src}
-                          alt={`source ${idx + 1}`}
-                          className={`w-full ${img.h} object-cover rounded-2xl border border-zinc-200 shadow-sm
-                                      transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:scale-[1.02]`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[32px] bg-gradient-to-r from-rose-200/30 via-purple-200/25 to-sky-200/30 blur-2xl opacity-80 group-hover:opacity-100 transition" />
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true }}
-                variants={fadeUp}
-                className="lg:col-span-6"
-              >
-                <div className="max-w-xl">
-                  <div className="text-xs font-semibold text-zinc-800">EXPLORE</div>
-                  <h3 className="mt-3 text-3xl md:text-4xl font-semibold text-zinc-900 leading-tight tracking-tight">
-                    Enrich your research with primary sources
-                  </h3>
-                  <p className="mt-4 text-zinc-600 leading-relaxed">
-                    Upload your paper or notes — Cognova extracts key insights, matches related work,
-                    identifies research gaps, and produces a clear conclusion with next steps.
-                  </p>
-
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    {/* <Link
-                      to="/about"
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-xl border border-zinc-200 bg-white text-zinc-900 font-semibold hover:bg-zinc-50 hover:shadow-md hover:-translate-y-0.5 transition"
-                    >
-                      Browse by collection
-                    </Link> */}
-
-                    <SoundButton
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-zinc-900 text-white font-semibold hover:bg-zinc-800 hover:shadow-lg hover:-translate-y-0.5 transition"
-                      onClick={() => (window.location.href = "/app")}
-                    >
-                      Start with an upload <ArrowRight className="h-4 w-4 ml-2" />
-                    </SoundButton>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </div>
-
-          {/* Trending topics (compact by default) */}
-          <div className="mt-16">
-            <div className="rounded-3xl border border-zinc-200 bg-white/70 backdrop-blur p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <div className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border border-zinc-200 bg-white text-zinc-700">
-                    <Sparkles className="h-4 w-4" />
-                    Trending topics
-                  </div>
-                  <div className="mt-2 text-xl font-extrabold text-zinc-950">
-                    Explore research topics
-                  </div>
-                  <div className="mt-1 text-sm text-zinc-600">
-                    Click a category to expand.
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {["Gen AI", "LLMs", "Graphs", "Privacy", "Stats"].map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() => {
-                        setTopicFilter(chip);
-                        setTopicsOpen(true);
-                      }}
-                      className="text-xs px-3 py-2 rounded-full border-2 border-black bg-white text-black font-semibold
-                                 hover:bg-black hover:text-white transition"
-                    >
-                      {chip}
-                    </button>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTopicFilter("All");
-                      setTopicQuery("");
-                      setTopicsOpen((v) => !v);
-                    }}
-                    className="text-xs px-3 py-2 rounded-full border border-zinc-200 bg-white text-zinc-700 hover:border-black transition"
-                  >
-                    {topicsOpen ? "Close" : "View all"}
-                  </button>
-                </div>
-              </div>
-
-              {topicsOpen ? (
-                <div className="mt-5 rounded-3xl border border-zinc-200 bg-white p-4">
-                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-                    <div className="text-sm font-semibold text-zinc-900">
-                      Showing: <span className="font-extrabold">{topicFilter}</span>{" "}
-                      <span className="text-zinc-500 font-normal">
-                        ({filteredTopics.length})
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2">
-                      <input
-                        value={topicQuery}
-                        onChange={(e) => setTopicQuery(e.target.value)}
-                        placeholder="Search…"
-                        className="w-full bg-transparent outline-none text-sm text-zinc-900 placeholder:text-zinc-500"
-                      />
-                    </div>
-                  </div>
-
-                  <motion.div
-                    initial="hidden"
-                    whileInView="show"
-                    viewport={{ once: true }}
-                    transition={{ staggerChildren: 0.06 }}
-                    className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-                  >
-                    {filteredTopics.slice(0, 6).map((t) => (
-                      <TopicCard
-                        key={t.title}
-                        title={t.title}
-                        desc={t.desc}
-                        href={t.href}
-                        tags={t.tags}
-                      />
-                    ))}
-                  </motion.div>
-
-                  {filteredTopics.length === 0 ? (
-                    <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
-                      No topics match your search. Try a different keyword.
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="text-xs text-zinc-600 flex items-center gap-2">
-                      <TimerReset className="h-4 w-4" />
-                      Tip: Open a topic → ask Cognova to summarize.
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTopicFilter("All");
-                          setTopicQuery("");
-                        }}
-                        className="text-xs px-3 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:border-black transition"
-                      >
-                        Reset
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTopicsOpen(false)}
-                        className="text-xs px-3 py-2 rounded-xl border-2 border-black bg-black text-white font-semibold hover:bg-zinc-900 transition"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* End-to-end with images */}
-          <div className="mt-16">
-            <h3 className="text-2xl font-semibold text-zinc-900 text-center tracking-tight">
-              What ARS does end-to-end
-            </h3>
-
-            <motion.div
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              transition={{ staggerChildren: 0.08 }}
-              className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6"
-            >
-              <FeatureCard
-                img={ars1}
-                icon={Sparkles}
-                index={1}
-                title="Autonomous Literature Understanding"
-                desc="Extracts methods, results, limitations and builds a structured memory."
-              />
-              <FeatureCard
-                img={ars2}
-                icon={ShieldCheck}
-                index={2}
-                title="Gap Detection & Hypothesis Generation"
-                desc="Detects contradictions and underexplored areas to propose novel hypotheses."
-              />
-              <FeatureCard
-                img={ars3}
-                icon={Layers}
-                index={3}
-                title="Experiment Design & Execution"
-                desc="Creates reproducible experiment plans and runs simulations/training automatically."
-              />
-              <FeatureCard
-                img={ars4}
-                icon={TimerReset}
-                index={4}
-                title="Explainability & Traceability"
-                desc="Maintains decision logs and reasoning traces for every step of the cycle."
-              />
-            </motion.div>
-          </div>
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {TRENDING_TOPICS.map((t) => (
+              <TopicCard key={t.title} {...t} />
+            ))}
+          </StaggerContainer>
         </div>
       </section>
 
