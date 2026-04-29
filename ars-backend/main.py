@@ -11,6 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from openai import OpenAI
+from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Depends, status
+from jose import JWTError, jwt
+import bcrypt
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 # -----------------------------
 # Logging
@@ -29,6 +36,56 @@ if not XAI_API_KEY:
 
 client = OpenAI(api_key=XAI_API_KEY, base_url="https://api.groq.com/openai/v1")
 logger.info("Loaded XAI_API_KEY successfully")
+
+# -----------------------------
+# Security & JWT Utils
+# -----------------------------
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-fallback-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
+
+pwd_context = None # Removed passlib
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+def verify_password(plain_password, hashed_password):
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+def get_password_hash(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, email FROM users WHERE email = ?", (email,))
+    user = c.fetchone()
+    conn.close()
+    
+    if user is None:
+        raise credentials_exception
+    return {"id": user[0], "email": user[1]}
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "docs.db")
@@ -53,6 +110,19 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT,
+            is_google_auth BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     conn.commit()
     conn.close()
 
@@ -229,12 +299,104 @@ class ResearchTopicRequest(BaseModel):
     mode: str = "full"
 
 
+class ExperimentModeRequest(BaseModel):
+    problem_statement: str
+    domain: str = "AI"
+
+class UserRegisterRequest(BaseModel):
+    full_name: str
+    email: str
+    password: str
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+class GoogleAuthRequest(BaseModel):
+    token: str
+
+
 # -----------------------------
 # Routes
 # -----------------------------
 @app.get("/")
 def health():
     return {"status": "ok", "app": "ARS Backend"}
+
+
+# -----------------------------
+# Auth Routes
+# -----------------------------
+@app.post("/api/auth/register")
+def register(user: UserRegisterRequest):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id FROM users WHERE email = ?", (user.email,))
+    if c.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_pw = get_password_hash(user.password)
+    c.execute(
+        "INSERT INTO users (full_name, email, password_hash, is_google_auth) VALUES (?, ?, ?, ?)",
+        (user.full_name, user.email, hashed_pw, False)
+    )
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "User created successfully"}
+
+@app.post("/api/auth/login")
+def login(user: UserLoginRequest):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, password_hash, is_google_auth FROM users WHERE email = ?", (user.email,))
+    db_user = c.fetchone()
+    conn.close()
+    
+    if not db_user or db_user[2] or not verify_password(user.password, db_user[1]):
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+        
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer", "user": {"email": user.email, "id": db_user[0]}}
+
+@app.post("/api/auth/google")
+def google_auth(req: GoogleAuthRequest):
+    try:
+        # Note: in a real production environment, pass `client_id=YOUR_CLIENT_ID` to verify_oauth2_token
+        idinfo = id_token.verify_oauth2_token(req.token, requests.Request())
+        email = idinfo.get('email')
+        if not email:
+            raise ValueError("No email in token")
+            
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT id FROM users WHERE email = ?", (email,))
+        db_user = c.fetchone()
+        
+        if not db_user:
+            c.execute(
+                "INSERT INTO users (email, is_google_auth) VALUES (?, ?)",
+                (email, True)
+            )
+            conn.commit()
+            user_id = c.lastrowid
+        else:
+            user_id = db_user[0]
+            
+        conn.close()
+        
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": email}, expires_delta=access_token_expires
+        )
+        return {"access_token": access_token, "token_type": "bearer", "user": {"email": email, "id": user_id}}
+        
+    except ValueError as e:
+        logger.error(f"Google auth error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid Google token")
 
 
 @app.post("/api/docs/upload")
@@ -364,4 +526,161 @@ Keep the output practical, detailed, and useful for a research workflow.
 
     except Exception as e:
         logger.error(f"Research topic error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -----------------------------
+# Experiment Mode Endpoint
+# -----------------------------
+@app.post("/api/experiment/mode")
+def experiment_mode(req: ExperimentModeRequest):
+    """
+    Generate experiment suggestions based on a problem statement.
+    This is the killer feature that makes ARS feel like a real scientist.
+    """
+    from datetime import datetime
+    
+    # Domain-specific context for better suggestions
+    domain_context = {
+        "AI": "Focus on machine learning, deep learning, NLP, computer vision, and LLM applications.",
+        "Biology": "Focus on molecular biology, genetics, bioinformatics, and biomedical research.",
+        "Physics": "Focus on theoretical physics, quantum mechanics, astrophysics, and materials science.",
+        "Chemistry": "Focus on organic chemistry, materials chemistry, computational chemistry, and biochemistry.",
+        "Medicine": "Focus on clinical research, drug discovery, medical imaging, and health informatics.",
+        "general": "Focus on data-driven research, statistical analysis, and empirical methods."
+    }
+    
+    context = domain_context.get(req.domain, domain_context["general"])
+    
+    try:
+        prompt = f"""You are an expert research scientist and experiment designer. 
+Your task is to suggest complete experiment setups for research problems.
+
+For each suggestion, provide:
+1. approach: A specific ML/AI technique or methodology (e.g., "NLP + BERT", "CNN + ResNet50", "Transformer + GPT")
+2. approach_description: Brief explanation of why this approach fits the problem (2-3 sentences)
+3. dataset: Name of a suitable public dataset
+4. dataset_url: URL or source for the dataset
+5. expected_output: What the experiment should produce (e.g., "classification model", "prediction system", "detector")
+6. difficulty: One of [beginner, intermediate, advanced] based on complexity
+7. estimated_time: Realistic time estimate (e.g., "2-4 hours", "1-2 days", "1 week")
+
+Return ONLY a valid JSON array with 3 suggestions, no markdown, no code blocks.
+Each suggestion should be realistic and actionable."""
+
+        user_prompt = f"""Domain: {req.domain}
+Context for {req.domain}: {context}
+
+Problem Statement: {req.problem_statement}
+
+Suggest 3 different experiment approaches that a researcher could use to tackle this problem.
+Each should be distinct and use different methodologies where possible.
+
+Return as a JSON array with this exact structure:
+[
+  {{
+    "approach": "...",
+    "approach_description": "...",
+    "dataset": "...",
+    "dataset_url": "...",
+    "expected_output": "...",
+    "difficulty": "...",
+    "estimated_time": "..."
+  }},
+  ...
+]"""
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=2000,
+            temperature=0.7
+        )
+        
+        response_text = response.choices[0].message.content
+        
+        # Clean and parse JSON
+        cleaned = response_text.strip()
+        if cleaned.startswith("```"):
+            parts = cleaned.split("```")
+            for part in parts:
+                if part.strip().startswith("["):
+                    cleaned = part.strip()
+                    break
+        
+        if cleaned.startswith("json"):
+            cleaned = cleaned[4:].strip()
+        
+        suggestions = json.loads(cleaned)
+        
+        if not isinstance(suggestions, list):
+            raise ValueError("Response is not a list")
+        
+        # Validate and normalize suggestions
+        validated = []
+        for i, s in enumerate(suggestions):
+            validated.append({
+                "approach": s.get("approach", f"Approach {i+1}"),
+                "approach_description": s.get("approach_description", ""),
+                "dataset": s.get("dataset", "Dataset to be determined"),
+                "dataset_url": s.get("dataset_url", ""),
+                "expected_output": s.get("expected_output", "Research model"),
+                "difficulty": s.get("difficulty", "intermediate"),
+                "estimated_time": s.get("estimated_time", "To be determined")
+            })
+        
+        logger.info(f"Experiment mode suggestions generated for: {req.problem_statement}")
+        
+        return {
+            "success": True,
+            "problem": req.problem_statement,
+            "domain": req.domain,
+            "suggestions": validated,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+        
+    except json.JSONDecodeError as e:
+        # Fallback suggestions if JSON parsing fails
+        logger.warning(f"JSON parse error in experiment mode, using fallback: {e}")
+        return {
+            "success": True,
+            "problem": req.problem_statement,
+            "domain": req.domain,
+            "suggestions": [
+                {
+                    "approach": "Data-driven approach",
+                    "approach_description": "Start with exploratory data analysis and baseline models before advancing to complex methods.",
+                    "dataset": "To be determined based on problem",
+                    "dataset_url": "",
+                    "expected_output": "Baseline model and analysis report",
+                    "difficulty": "beginner",
+                    "estimated_time": "1-2 days"
+                },
+                {
+                    "approach": "ML/AI methodology",
+                    "approach_description": "Apply machine learning techniques appropriate for the data type and problem structure.",
+                    "dataset": "To be determined based on problem",
+                    "dataset_url": "",
+                    "expected_output": "Trained model with evaluation metrics",
+                    "difficulty": "intermediate",
+                    "estimated_time": "3-5 days"
+                },
+                {
+                    "approach": "Advanced deep learning",
+                    "approach_description": "Use state-of-the-art deep learning models for complex pattern recognition.",
+                    "dataset": "To be determined based on problem",
+                    "dataset_url": "",
+                    "expected_output": "Production-ready deep learning system",
+                    "difficulty": "advanced",
+                    "estimated_time": "1-2 weeks"
+                }
+            ],
+            "generated_at": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Experiment mode error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
