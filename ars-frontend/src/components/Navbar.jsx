@@ -1,6 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, LogOut, LogIn, User } from "lucide-react";
 import { useSoundSettings } from "../context/SoundContext";
+import { useAuth } from "../context/AuthContext";
 
 const NavItem = ({ to, children }) => (
   <NavLink
@@ -20,6 +21,7 @@ const NavItem = ({ to, children }) => (
 export default function Navbar() {
   const nav = useNavigate();
   const { enabled, toggle } = useSoundSettings();
+  const { isAuthenticated, user, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/40 backdrop-blur">
@@ -36,6 +38,7 @@ export default function Navbar() {
           <NavItem to="/">Home</NavItem>
           <NavItem to="/about">About</NavItem>
           <NavItem to="/search">Search Research</NavItem>
+          <NavItem to="/experiment">Experiment Mode</NavItem>
           <NavItem to="/app">Dashboard</NavItem>
         </nav>
 
@@ -52,12 +55,32 @@ export default function Navbar() {
           </button>
 
           {/* Normal button (No Sound Button component needed) */}
-          <button
-            onClick={() => nav("/app")}
-            className="hidden sm:inline-flex text-sm px-4 py-2 rounded-xl bg-white text-zinc-900 font-medium hover:bg-zinc-100 transition"
-          >
-            Live Demo
-          </button>
+          {isAuthenticated ? (
+            <div className="flex items-center gap-3 ml-2">
+              <span className="hidden sm:inline-flex items-center gap-1 text-xs text-white/60 bg-white/5 px-2 py-1 rounded-md">
+                <User className="h-3 w-3" />
+                {user?.email?.split('@')[0]}
+              </span>
+              <button
+                onClick={() => {
+                  logout();
+                  nav("/");
+                }}
+                className="hidden sm:inline-flex items-center gap-1 text-sm px-3 py-2 rounded-xl bg-red-500/10 text-red-400 font-medium hover:bg-red-500/20 transition border border-red-500/20"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => nav("/login")}
+              className="hidden sm:inline-flex items-center gap-1 text-sm px-4 py-2 rounded-xl bg-white text-zinc-900 font-medium hover:bg-zinc-100 transition"
+            >
+              <LogIn className="h-4 w-4" />
+              Sign In
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -51,3 +51,26 @@ class DocSummaryResponse(BaseModel):
 
 class ReportRequest(BaseModel):
     run_id: str
+
+# ==========================================
+# Experiment Mode Schemas
+# ==========================================
+
+class ExperimentSuggestion(BaseModel):
+    approach: str
+    approach_description: str
+    dataset: str
+    dataset_url: str
+    expected_output: str
+    difficulty: str  # beginner, intermediate, advanced
+    estimated_time: str
+
+class ExperimentModeRequest(BaseModel):
+    problem_statement: str
+    domain: str = "AI"  # AI, Biology, Physics, Chemistry, Medicine, general
+
+class ExperimentModeResponse(BaseModel):
+    problem: str
+    domain: str
+    suggestions: List[ExperimentSuggestion]
+    generated_at: str
