@@ -4,13 +4,13 @@ import introMp3 from "../assets/click.mp3";
 const SoundContext = createContext(null);
 
 export function SoundProvider({ children }) {
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState(false);
   const audioRef = useRef(null);
-  const played = useRef(false);
 
   useEffect(() => {
     const audio = new Audio(introMp3);
-    audio.volume = 0.6;
+    audio.volume = 0.5;
+    audio.loop = true; // Loop the background track
     audio.preload = "auto";
     audioRef.current = audio;
 
@@ -21,45 +21,20 @@ export function SoundProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!enabled) return;
-    if (played.current) return;
+    if (!audioRef.current) return;
 
-    const tryPlay = async () => {
-      try {
-        await audioRef.current.play();
-        played.current = true;
-
-        setTimeout(() => {
-          audioRef.current.pause();
-          audioRef.current.currentTime = 0;
-        }, 15000);
-      } catch {
-        // autoplay blocked → play on first click
-        const playOnClick = async () => {
-          try {
-            await audioRef.current.play();
-            played.current = true;
-
-            setTimeout(() => {
-              audioRef.current.pause();
-              audioRef.current.currentTime = 0;
-            }, 15000);
-          } catch {}
-        };
-
-        window.addEventListener("pointerdown", playOnClick, { once: true });
-      }
-    };
-
-    tryPlay();
+    if (enabled) {
+      audioRef.current.play().catch(() => {
+        // If autoplay gets blocked, revert to false
+        setEnabled(false);
+      });
+    } else {
+      audioRef.current.pause();
+    }
   }, [enabled]);
 
-  // helper to play the click sound any time the user requests it
-  const play = () => {
-    if (!enabled || !audioRef.current) return;
-    audioRef.current.currentTime = 0;
-    audioRef.current.play().catch(() => {});
-  };
+  // Remove the old logic that resets and restarts the background track on every click
+  const play = () => {};
 
   return (
     <SoundContext.Provider
@@ -78,7 +53,7 @@ export function useSoundSettings() {
   return useContext(SoundContext);
 }
 
-// simple button wrapper – plays click sound when enabled
+// simple button wrapper
 export function SoundButton({ children, onClick, className, ...props }) {
   const { enabled, play } = useContext(SoundContext);
 
@@ -99,4 +74,4 @@ export function SoundButton({ children, onClick, className, ...props }) {
 }
 
 // default export keeps existing import in Home.jsx working
-export default SoundButton;
+export default SoundButton;
