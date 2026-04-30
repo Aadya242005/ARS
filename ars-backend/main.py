@@ -2,128 +2,305 @@ import os
 import json
 import sqlite3
 import logging
-from datetime import datetime
+import io
+import PyPDF2
+import math
+import re
+from collections import Counter
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from openai import OpenAI
+from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Depends, status
+from jose import JWTError, jwt
+import bcrypt
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
-# configure simple logging to console
+# -----------------------------
+# Logging
+# -----------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# -----------------------------
+# Env + xAI/Grok Client
+# -----------------------------
 load_dotenv()
 
-# Load OpenAI API key
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY missing in environment; set it in .env or export it")
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+if not XAI_API_KEY:
+    raise RuntimeError("XAI_API_KEY missing in environment; set it in .env or export it")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-logger.info("loaded OPENAI_API_KEY, length=%d", len(OPENAI_API_KEY))
+client = OpenAI(api_key=XAI_API_KEY, base_url="https://api.groq.com/openai/v1")
 
-# Initialize SQLite database for docs
-DB_PATH = "docs.db"
+import time
+
+original_create = client.chat.completions.create
+
+def create_with_fallback(*args, **kwargs):
+    max_retries = 3
+    base_wait = 1.5
+    
+    for attempt in range(max_retries):
+        try:
+            return original_create(*args, **kwargs)
+        except Exception as e:
+            error_str = str(e).lower()
+            if "429" in error_str or "rate_limit" in error_str or "tokens" in error_str:
+                if attempt == max_retries - 1:
+                    raise e
+                logger.warning(f"Rate limit hit for {kwargs.get('model', 'unknown model')} on attempt {attempt+1}. Waiting {base_wait}s and trying llama-3.1-8b-instant...")
+                kwargs["model"] = "llama-3.1-8b-instant"
+                time.sleep(base_wait)
+                base_wait *= 2
+            else:
+                raise e
+
+client.chat.completions.create = create_with_fallback
+
+logger.info("Loaded XAI_API_KEY successfully and added LLM fallback wrapper")
+
+# -----------------------------
+# Security & JWT Utils
+# -----------------------------
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-fallback-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
+
+pwd_context = None # Removed passlib
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+def verify_password(plain_password, hashed_password):
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+def get_password_hash(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, email FROM users WHERE email = ?", (email,))
+    user = c.fetchone()
+    conn.close()
+    
+    if user is None:
+        raise credentials_exception
+    return {"id": user[0], "email": user[1]}
+
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "docs.db")
+
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    return conn
+
 
 def init_db():
     """Initialize SQLite database with chunks table"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS chunks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        doc_name TEXT NOT NULL,
-        chunk_text TEXT NOT NULL,
-        chunk_index INTEGER NOT NULL,
-        embedding TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            doc_name TEXT NOT NULL,
+            chunk_text TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            embedding TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT,
+            is_google_auth BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     conn.commit()
     conn.close()
 
-def simple_chunk(text: str, chunk_size: int = 500, overlap: int = 100) -> List[str]:
-    """Simple recursive chunking by character count with overlap"""
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = min(start + chunk_size, len(text))
-        chunk = text[start:end]
-        if chunk.strip():
-            chunks.append(chunk)
-        start = end - overlap if end < len(text) else end
-    return chunks
+
+# -----------------------------
+# Simple TF-IDF Embedding (no external API needed)
+# -----------------------------
+def tokenize(text: str) -> List[str]:
+    """Simple tokenizer: lowercase, split on non-alphanumeric"""
+    return re.findall(r'[a-z0-9]+', text.lower())
+
+
+def compute_tf(tokens: List[str]) -> dict:
+    """Compute term frequency"""
+    counter = Counter(tokens)
+    total = len(tokens)
+    if total == 0:
+        return {}
+    return {word: count / total for word, count in counter.items()}
+
+
+def simple_embedding(text: str) -> List[float]:
+    """
+    Create a simple bag-of-words style embedding.
+    Uses a fixed vocabulary hash to map tokens to a fixed-size vector.
+    """
+    tokens = tokenize(text)
+    tf = compute_tf(tokens)
+    
+    # Use a fixed-size vector (256 dimensions)
+    vec_size = 256
+    vector = [0.0] * vec_size
+    
+    for word, freq in tf.items():
+        # Hash word to a position in the vector
+        idx = hash(word) % vec_size
+        vector[idx] += freq
+    
+    # L2 normalize
+    norm = math.sqrt(sum(v * v for v in vector))
+    if norm > 0:
+        vector = [v / norm for v in vector]
+    
+    return vector
+
 
 def get_embedding(text: str) -> str:
-    """Get OpenAI embedding for text"""
+    """Get embedding for text using simple local method"""
     try:
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text
-        )
-        return json.dumps(response.data[0].embedding)
+        embedding = simple_embedding(text)
+        return json.dumps(embedding)
     except Exception as e:
         logger.error(f"Embedding error: {e}")
         raise
 
+
+# -----------------------------
+# Chunking
+# -----------------------------
+def simple_chunk(text: str, chunk_size: int = 500, overlap: int = 100) -> List[str]:
+    """Simple chunking by character count with overlap"""
+    chunks = []
+    start = 0
+
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+
+        if end == len(text):
+            break
+
+        start = end - overlap
+
+    return chunks
+
+
 def store_chunks(doc_name: str, chunks: List[str]):
     """Store chunks and embeddings in SQLite"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
+
     for idx, chunk in enumerate(chunks):
         try:
             embedding = get_embedding(chunk)
-            c.execute('''INSERT INTO chunks (doc_name, chunk_text, chunk_index, embedding)
-                         VALUES (?, ?, ?, ?)''',
-                      (doc_name, chunk, idx, embedding))
+            c.execute(
+                """
+                INSERT INTO chunks (doc_name, chunk_text, chunk_index, embedding)
+                VALUES (?, ?, ?, ?)
+                """,
+                (doc_name, chunk, idx, embedding)
+            )
         except Exception as e:
-            logger.error(f"Failed to embed chunk {idx}: {e}")
+            logger.error(f"Failed to embed chunk {idx} of {doc_name}: {e}")
+
     conn.commit()
     conn.close()
 
+
 def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     """Compute cosine similarity between two vectors"""
-    import math
     dot = sum(a * b for a, b in zip(vec1, vec2))
     norm1 = math.sqrt(sum(a * a for a in vec1))
     norm2 = math.sqrt(sum(b * b for b in vec2))
-    return dot / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0.0
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot / (norm1 * norm2)
+
 
 def retrieve_chunks(query: str, top_k: int = 5) -> List[dict]:
     """Retrieve top-k chunks by similarity to query"""
     try:
         query_embedding = json.loads(get_embedding(query))
-        conn = sqlite3.connect(DB_PATH)
+
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("SELECT id, doc_name, chunk_text FROM chunks")
+        c.execute("SELECT id, doc_name, chunk_text, embedding FROM chunks")
         all_chunks = c.fetchall()
         conn.close()
-        
+
         scored = []
-        for chunk_id, doc_name, chunk_text in all_chunks:
-            chunk_embedding = json.loads(
-                sqlite3.connect(DB_PATH).cursor().execute(
-                    "SELECT embedding FROM chunks WHERE id = ?", (chunk_id,)
-                ).fetchone()[0]
-            )
+        for chunk_id, doc_name, chunk_text, embedding_text in all_chunks:
+            chunk_embedding = json.loads(embedding_text)
             score = cosine_similarity(query_embedding, chunk_embedding)
+
             scored.append({
                 "chunk_id": chunk_id,
                 "doc_name": doc_name,
                 "text": chunk_text,
                 "score": score
             })
-        
-        # Sort by score and return top-k
-        return sorted(scored, key=lambda x: x["score"], reverse=True)[:top_k]
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        return scored[:top_k]
+
     except Exception as e:
         logger.error(f"Retrieval error: {e}")
         raise
 
+
+# -----------------------------
+# App Init
+# -----------------------------
 init_db()
+
 app = FastAPI(title="ARS Backend", version="1.0")
 
-# React dev server + agents
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -132,76 +309,422 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# -----------------------------
+# Request Models
+# -----------------------------
 class RetrievalRequest(BaseModel):
     query: str
     top_k: int = 5
+
 
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[dict]] = None
 
+
+class ResearchTopicRequest(BaseModel):
+    topic: str
+    mode: str = "full"
+
+
+class ExperimentModeRequest(BaseModel):
+    problem_statement: str
+    domain: str = "AI"
+
+class UserRegisterRequest(BaseModel):
+    full_name: str
+    email: str
+    password: str
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+class GoogleAuthRequest(BaseModel):
+    token: str
+
+
+# -----------------------------
+# Routes
+# -----------------------------
 @app.get("/")
 def health():
     return {"status": "ok", "app": "ARS Backend"}
+
+
+# -----------------------------
+# Auth Routes
+# -----------------------------
+@app.post("/api/auth/register")
+def register(user: UserRegisterRequest):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id FROM users WHERE email = ?", (user.email,))
+    if c.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_pw = get_password_hash(user.password)
+    c.execute(
+        "INSERT INTO users (full_name, email, password_hash, is_google_auth) VALUES (?, ?, ?, ?)",
+        (user.full_name, user.email, hashed_pw, False)
+    )
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "User created successfully"}
+
+@app.post("/api/auth/login")
+def login(user: UserLoginRequest):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, password_hash, is_google_auth FROM users WHERE email = ?", (user.email,))
+    db_user = c.fetchone()
+    conn.close()
+    
+    if not db_user or db_user[2] or not verify_password(user.password, db_user[1]):
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+        
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer", "user": {"email": user.email, "id": db_user[0]}}
+
+@app.post("/api/auth/google")
+def google_auth(req: GoogleAuthRequest):
+    try:
+        # Note: in a real production environment, pass `client_id=YOUR_CLIENT_ID` to verify_oauth2_token
+        idinfo = id_token.verify_oauth2_token(req.token, requests.Request())
+        email = idinfo.get('email')
+        if not email:
+            raise ValueError("No email in token")
+            
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT id FROM users WHERE email = ?", (email,))
+        db_user = c.fetchone()
+        
+        if not db_user:
+            c.execute(
+                "INSERT INTO users (email, is_google_auth) VALUES (?, ?)",
+                (email, True)
+            )
+            conn.commit()
+            user_id = c.lastrowid
+        else:
+            user_id = db_user[0]
+            
+        conn.close()
+        
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": email}, expires_delta=access_token_expires
+        )
+        return {"access_token": access_token, "token_type": "bearer", "user": {"email": email, "id": user_id}}
+        
+    except ValueError as e:
+        logger.error(f"Google auth error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid Google token")
+
 
 @app.post("/api/docs/upload")
 async def upload_doc(file: UploadFile = File(...)):
     """Upload and process a document"""
     try:
         content = await file.read()
-        text = content.decode("utf-8")
         
+        if file.filename.lower().endswith('.pdf'):
+            try:
+                pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
+                text = ""
+                for page in pdf_reader.pages:
+                    extracted = page.extract_text()
+                    if extracted:
+                        text += extracted + "\n"
+            except Exception as e:
+                logger.error(f"PDF parsing error: {e}")
+                text = ""
+        else:
+            text = content.decode("utf-8")
+
+        if not text.strip():
+            raise ValueError("No text could be extracted from the document.")
+
         chunks = simple_chunk(text)
         store_chunks(file.filename, chunks)
-        
+
         logger.info(f"Uploaded {file.filename}: {len(chunks)} chunks")
-        return {"file": file.filename, "chunks": len(chunks)}
+        return {
+            "success": True,
+            "file": file.filename,
+            "chunks": len(chunks)
+        }
+
     except Exception as e:
         logger.error(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/docs/retrieve")
 def retrieve(req: RetrievalRequest):
     """Retrieve top-k chunks for a query"""
     try:
         chunks = retrieve_chunks(req.query, req.top_k)
-        return {"query": req.query, "chunks": chunks}
+        return {
+            "success": True,
+            "query": req.query,
+            "chunks": chunks
+        }
+
     except Exception as e:
-        logger.error(f"Retrieval error: {e}")
+        logger.error(f"Retrieval route error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/chat")
 def chat(req: ChatRequest):
-    """Chat endpoint using OpenAI"""
+    """General chat endpoint using Grok"""
     try:
-        # Build message history
         messages = []
-        
-        # Add previous messages if provided
+
         if req.history:
             for msg in req.history:
                 messages.append({
                     "role": msg.get("role", "user"),
                     "content": msg.get("text", "")
                 })
-        
-        # Add current message
+
         messages.append({
             "role": "user",
             "content": req.message
         })
-        
-        # Call OpenAI API
+
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="llama-3.3-70b-versatile",
             messages=messages,
             max_tokens=500,
             temperature=0.7
         )
-        
+
         reply = response.choices[0].message.content
-        logger.info(f"Chat response: {len(reply)} chars")
-        return {"reply": reply}
+        logger.info(f"Chat response generated successfully")
+
+        return {
+            "success": True,
+            "reply": reply
+        }
+
     except Exception as e:
         logger.error(f"Chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/research/topic")
+def research_topic(req: ResearchTopicRequest):
+    """Start research pipeline for a topic"""
+    try:
+        prompt = f"""
+You are an advanced agentic research assistant.
+
+Topic: {req.topic}
+Mode: {req.mode}
+
+Generate a structured research response with:
+1. Topic overview
+2. Important research aspects
+3. Advanced problem statements
+4. Research directions
+5. Suitable methodologies / models / approaches
+6. Data or resources required
+7. Expected outputs
+8. Step-by-step roadmap
+
+Keep the output practical, detailed, and useful for a research workflow.
+"""
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful research planning assistant."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+
+        reply = response.choices[0].message.content
+        logger.info(f"Research topic response generated for topic: {req.topic}")
+
+        return {
+            "success": True,
+            "topic": req.topic,
+            "mode": req.mode,
+            "reply": reply
+        }
+
+    except Exception as e:
+        logger.error(f"Research topic error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -----------------------------
+# Experiment Mode Endpoint
+# -----------------------------
+@app.post("/api/experiment/mode")
+def experiment_mode(req: ExperimentModeRequest):
+    """
+    Generate experiment suggestions based on a problem statement.
+    This is the killer feature that makes ARS feel like a real scientist.
+    """
+    from datetime import datetime
+    
+    # Domain-specific context for better suggestions
+    domain_context = {
+        "AI": "Focus on machine learning, deep learning, NLP, computer vision, and LLM applications.",
+        "Biology": "Focus on molecular biology, genetics, bioinformatics, and biomedical research.",
+        "Physics": "Focus on theoretical physics, quantum mechanics, astrophysics, and materials science.",
+        "Chemistry": "Focus on organic chemistry, materials chemistry, computational chemistry, and biochemistry.",
+        "Medicine": "Focus on clinical research, drug discovery, medical imaging, and health informatics.",
+        "general": "Focus on data-driven research, statistical analysis, and empirical methods."
+    }
+    
+    context = domain_context.get(req.domain, domain_context["general"])
+    
+    try:
+        prompt = f"""You are an expert research scientist and experiment designer. 
+Your task is to suggest complete experiment setups for research problems.
+
+For each suggestion, provide:
+1. approach: A specific ML/AI technique or methodology (e.g., "NLP + BERT", "CNN + ResNet50", "Transformer + GPT")
+2. approach_description: Brief explanation of why this approach fits the problem (2-3 sentences)
+3. dataset: Name of a suitable public dataset
+4. dataset_url: URL or source for the dataset
+5. expected_output: What the experiment should produce (e.g., "classification model", "prediction system", "detector")
+6. difficulty: One of [beginner, intermediate, advanced] based on complexity
+7. estimated_time: Realistic time estimate (e.g., "2-4 hours", "1-2 days", "1 week")
+
+Return ONLY a valid JSON array with 3 suggestions, no markdown, no code blocks.
+Each suggestion should be realistic and actionable."""
+
+        user_prompt = f"""Domain: {req.domain}
+Context for {req.domain}: {context}
+
+Problem Statement: {req.problem_statement}
+
+Suggest 3 different experiment approaches that a researcher could use to tackle this problem.
+Each should be distinct and use different methodologies where possible.
+
+Return as a JSON array with this exact structure:
+[
+  {{
+    "approach": "...",
+    "approach_description": "...",
+    "dataset": "...",
+    "dataset_url": "...",
+    "expected_output": "...",
+    "difficulty": "...",
+    "estimated_time": "..."
+  }},
+  ...
+]"""
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=2000,
+            temperature=0.7
+        )
+        
+        response_text = response.choices[0].message.content
+        
+        # Clean and parse JSON
+        cleaned = response_text.strip()
+        if cleaned.startswith("```"):
+            parts = cleaned.split("```")
+            for part in parts:
+                if part.strip().startswith("["):
+                    cleaned = part.strip()
+                    break
+        
+        if cleaned.startswith("json"):
+            cleaned = cleaned[4:].strip()
+        
+        suggestions = json.loads(cleaned)
+        
+        if not isinstance(suggestions, list):
+            raise ValueError("Response is not a list")
+        
+        # Validate and normalize suggestions
+        validated = []
+        for i, s in enumerate(suggestions):
+            validated.append({
+                "approach": s.get("approach", f"Approach {i+1}"),
+                "approach_description": s.get("approach_description", ""),
+                "dataset": s.get("dataset", "Dataset to be determined"),
+                "dataset_url": s.get("dataset_url", ""),
+                "expected_output": s.get("expected_output", "Research model"),
+                "difficulty": s.get("difficulty", "intermediate"),
+                "estimated_time": s.get("estimated_time", "To be determined")
+            })
+        
+        logger.info(f"Experiment mode suggestions generated for: {req.problem_statement}")
+        
+        return {
+            "success": True,
+            "problem": req.problem_statement,
+            "domain": req.domain,
+            "suggestions": validated,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+        
+    except json.JSONDecodeError as e:
+        # Fallback suggestions if JSON parsing fails
+        logger.warning(f"JSON parse error in experiment mode, using fallback: {e}")
+        return {
+            "success": True,
+            "problem": req.problem_statement,
+            "domain": req.domain,
+            "suggestions": [
+                {
+                    "approach": "Data-driven approach",
+                    "approach_description": "Start with exploratory data analysis and baseline models before advancing to complex methods.",
+                    "dataset": "To be determined based on problem",
+                    "dataset_url": "",
+                    "expected_output": "Baseline model and analysis report",
+                    "difficulty": "beginner",
+                    "estimated_time": "1-2 days"
+                },
+                {
+                    "approach": "ML/AI methodology",
+                    "approach_description": "Apply machine learning techniques appropriate for the data type and problem structure.",
+                    "dataset": "To be determined based on problem",
+                    "dataset_url": "",
+                    "expected_output": "Trained model with evaluation metrics",
+                    "difficulty": "intermediate",
+                    "estimated_time": "3-5 days"
+                },
+                {
+                    "approach": "Advanced deep learning",
+                    "approach_description": "Use state-of-the-art deep learning models for complex pattern recognition.",
+                    "dataset": "To be determined based on problem",
+                    "dataset_url": "",
+                    "expected_output": "Production-ready deep learning system",
+                    "difficulty": "advanced",
+                    "estimated_time": "1-2 weeks"
+                }
+            ],
+            "generated_at": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Experiment mode error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
