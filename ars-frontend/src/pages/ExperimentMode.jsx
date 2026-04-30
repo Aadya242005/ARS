@@ -7,13 +7,9 @@ import {
   Clock,
   Database,
   Target,
-  Zap,
   CheckCircle2,
   AlertCircle,
-  Code,
-  ImageIcon,
   Layout,
-  ExternalLink,
 } from "lucide-react";
 
 const DOMAINS = [
@@ -26,7 +22,6 @@ const DOMAINS = [
 ];
 
 const DIFFICULTY_COLORS = {
-  beginner: "bg-emerald-100 text-emerald-700 ring-emerald-200",
   intermediate: "bg-amber-100 text-amber-700 ring-amber-200",
   advanced: "bg-rose-100 text-rose-700 ring-rose-200",
 };
