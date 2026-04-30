@@ -92,6 +92,11 @@ The following testable hypotheses were generated through chain-of-thought reason
 ## 4. Execution Results
 
 """
+    
+    if ws.get("plot_url"):
+        # Use a full URL or relative path depending on frontend needs
+        # Since it's served by the agent service, we can use the relative path
+        report += f"![Results Visualization]({ws['plot_url']})\n\n"
 
     for r in results:
         status_icon = "✅" if r.get("status") == "PASS" else "❌"

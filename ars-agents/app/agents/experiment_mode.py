@@ -8,7 +8,7 @@ design their experiments like a real scientist.
 
 import json
 from datetime import datetime
-from ..client import client
+from ..client import client, llm_call
 
 
 def suggest_experiment(problem_statement: str, domain: str = "AI") -> dict:
@@ -36,52 +36,19 @@ def suggest_experiment(problem_statement: str, domain: str = "AI") -> dict:
     context = domain_context.get(domain, domain_context["general"])
     
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = llm_call(
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
-                    "content": f"""You are an expert research scientist and experiment designer. 
-Your task is to suggest complete experiment setups for research problems.
-
-For each suggestion, provide:
-1. approach: A specific ML/AI technique or methodology (e.g., "NLP + BERT", "CNN + ResNet50", "Transformer + GPT")
-2. approach_description: Brief explanation of why this approach fits the problem (2-3 sentences)
-3. dataset: Name of a suitable public dataset
-4. dataset_url: URL or source for the dataset
-5. expected_output: What the experiment should produce (e.g., "classification model", "prediction system", "detector")
-6. difficulty: One of [beginner, intermediate, advanced] based on complexity
-7. estimated_time: Realistic time estimate (e.g., "2-4 hours", "1-2 days", "1 week")
-
-Return ONLY a valid JSON array with 3 suggestions, no markdown, no code blocks.
-Each suggestion should be realistic and actionable."""
+                    "content": f"You are a research scientist. Suggest 3 experiment approaches for the given problem in {domain}. Return ONLY a JSON array of objects with: approach, approach_description (2 sentences), dataset, dataset_url, expected_output, difficulty (beginner/intermediate/advanced), estimated_time."
                 },
                 {
                     "role": "user",
-                    "content": f"""Domain: {domain}
-Context for {domain}: {context}
-
-Problem Statement: {problem_statement}
-
-Suggest 3 different experiment approaches that a researcher could use to tackle this problem.
-Each should be distinct and use different methodologies where possible.
-
-Return as a JSON array with this exact structure:
-[
-  {{
-    "approach": "...",
-    "approach_description": "...",
-    "dataset": "...",
-    "dataset_url": "...",
-    "expected_output": "...",
-    "difficulty": "...",
-    "estimated_time": "..."
-  }},
-  ...
-]"""
+                    "content": f"Problem: {problem_statement}"
                 }
             ],
-            max_tokens=2000,
+            max_tokens=600,
             temperature=0.7
         )
         
@@ -118,6 +85,7 @@ Return as a JSON array with this exact structure:
             })
         
         return {
+            "success": True,
             "problem": problem_statement,
             "domain": domain,
             "suggestions": validated,
@@ -127,6 +95,7 @@ Return as a JSON array with this exact structure:
     except json.JSONDecodeError as e:
         # Fallback suggestions if JSON parsing fails
         return {
+            "success": True,
             "problem": problem_statement,
             "domain": domain,
             "suggestions": [
@@ -163,3 +132,55 @@ Return as a JSON array with this exact structure:
         
     except Exception as e:
         raise Exception(f"Failed to generate experiment suggestions: {str(e)}")
+
+def analyze_suggestion(problem: str, suggestion: dict, domain: str = "AI") -> dict:
+    """
+    Perform deep-dive analysis of a specific experiment suggestion,
+    including pros/cons, visualization plan, and Python code.
+    """
+    try:
+        response = llm_call(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are an expert scientist. Analyze the suggestion for the problem in {domain}. Be extremely concise. Return ONLY a JSON object with: analysis (1 paragraph), pros (list of 3), cons (list of 3), visualization_plan (list of 2), image_keywords (list of 3), code (concise Python baseline script)."
+                },
+                {
+                    "role": "user",
+                    "content": f"Problem: {problem}\nSuggestion: {suggestion.get('approach')}"
+                }
+            ],
+            max_tokens=800,
+            temperature=0.4
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        cleaned = response_text
+        if cleaned.startswith("```"):
+            parts = cleaned.split("```")
+            for part in parts:
+                if part.strip().startswith("{"):
+                    cleaned = part.strip()
+                    break
+        if cleaned.startswith("json"):
+            cleaned = cleaned[4:].strip()
+            
+        analysis_data = json.loads(cleaned)
+        
+        return {
+            "analysis": analysis_data.get("analysis", ""),
+            "pros": analysis_data.get("pros", []),
+            "cons": analysis_data.get("cons", []),
+            "visualization_plan": analysis_data.get("visualization_plan", []),
+            "image_keywords": analysis_data.get("image_keywords", []),
+            "preview_image_url": "/static/plots/research_preview.png",
+            "code": analysis_data.get("code", "# Python code placeholder"),
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "error": f"Failed to analyze suggestion: {str(e)}",
+            "analysis": "Analysis failed due to an error.",
+            "code": "# Error generating code"
+        }

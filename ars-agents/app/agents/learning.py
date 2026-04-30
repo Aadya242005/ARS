@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 from ..state import AgentState
-from ..client import client
+from ..client import client, llm_call
 
 def run(state: AgentState) -> AgentState:
     state["active_node"] = "learning"
@@ -22,6 +22,16 @@ def run(state: AgentState) -> AgentState:
     domain = state.get("domain", "general")
     iteration = state.get("iteration", 1)
 
+    def sanitize_list(lst):
+        if not isinstance(lst, list):
+            return []
+        return [str(item) for item in lst]
+
+    conclusions = sanitize_list(analysis.get('conclusions', ['No conclusions yet']))
+    improvements = sanitize_list(analysis.get('improvements', ['None identified']))
+    val_issues = [f"- {v.get('check')}: {v.get('status')} - {v.get('details', '')[:80]}" 
+                  for v in validation if v.get('status') != 'PASS'][:5]
+
     # Build comprehensive context
     context = f"""Research Goal: {goal}
 Domain: {domain}
@@ -35,18 +45,18 @@ CYCLE SUMMARY:
 - Validation checks: {sum(1 for v in validation if v.get('status') == 'PASS')}/{len(validation)} passed
 
 KEY CONCLUSIONS:
-{chr(10).join(analysis.get('conclusions', ['No conclusions yet']))}
+{chr(10).join(conclusions)}
 
 IMPROVEMENTS IDENTIFIED:
-{chr(10).join(analysis.get('improvements', ['None identified']))}
+{chr(10).join(improvements)}
 
 VALIDATION ISSUES:
-{chr(10).join([f"- {v.get('check')}: {v.get('status')} - {v.get('details', '')[:80]}" for v in validation if v.get('status') != 'PASS'][:5])}
+{chr(10).join(val_issues)}
 """
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = llm_call(
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
@@ -94,10 +104,10 @@ Synthesize learnings and plan next iteration. Return JSON object."""
 
             ws = state.setdefault("workspace", {})
             ws["learning"] = {
-                "key_learnings": learning_data.get("key_learnings", []),
-                "best_practices": learning_data.get("best_practices", []),
-                "next_focus": learning_data.get("next_focus", []),
-                "risk_mitigations": learning_data.get("risk_mitigations", []),
+                "key_learnings": sanitize_list(learning_data.get("key_learnings", [])),
+                "best_practices": sanitize_list(learning_data.get("best_practices", [])),
+                "next_focus": sanitize_list(learning_data.get("next_focus", [])),
+                "risk_mitigations": sanitize_list(learning_data.get("risk_mitigations", [])),
             }
 
             # Store evaluation metrics
@@ -160,6 +170,9 @@ Synthesize learnings and plan next iteration. Return JSON object."""
     total = len(results)
     eval_metrics = state.get("workspace", {}).get("evaluation", {})
 
+    final_conclusions = sanitize_list(analysis.get('conclusions', ['No conclusions']))
+    final_next_focus = sanitize_list(ws.get('learning', {}).get('next_focus', ['Plan next iteration']))
+
     ws = state.setdefault("workspace", {})
     ws["final"] = f"""✅ Research Cycle {iteration} Complete
 
@@ -172,10 +185,10 @@ Synthesize learnings and plan next iteration. Return JSON object."""
 • Iteration Improvement: {eval_metrics.get('iteration_improvement', 0):.0%}
 
 📋 Key Findings:
-{chr(10).join(['• ' + c for c in analysis.get('conclusions', ['No conclusions'])[:3]])}
+{chr(10).join(['• ' + str(c) for c in final_conclusions[:3]])}
 
 🎯 Next Steps:
-{chr(10).join(['• ' + f for f in ws.get('learning', {}).get('next_focus', ['Plan next iteration'])[:3]])}
+{chr(10).join(['• ' + str(f) for f in final_next_focus[:3]])}
 
 {'🔄 Convergence detected — research is stabilizing' if eval_metrics.get('convergence_signal') else f"🚀 Recommended: {eval_metrics.get('recommended_iterations', 2)} more iteration(s)"}
 """

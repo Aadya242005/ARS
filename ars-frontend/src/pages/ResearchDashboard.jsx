@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ExperimentResultsChart,
@@ -15,7 +15,7 @@ import {
 } from "../components/ResearchCards";
 
 /* ───────── Constants ───────── */
-const AGENTS_API = "http://localhost:6060";
+const AGENTS_API = "http://localhost:8000";
 const BACKEND_API = "http://localhost:5050";
 
 const AGENTS = [
@@ -143,13 +143,16 @@ function TabBtn({ active, onClick, children }) {
    =================================================================== */
 export default function ResearchDashboard() {
   const nav = useNavigate();
+  const location = useLocation();
+  const routeState = location.state || {};
   const inputRef = useRef(null);
   const logEndRef = useRef(null);
 
   /* ───── State ───── */
-  const [goal, setGoal] = useState("Analyze the effectiveness of retrieval-augmented generation for improving factual accuracy in large language models.");
-  const [mode, setMode] = useState("full");
-  const [domain, setDomain] = useState("AI");
+  const [goal, setGoal] = useState(routeState.goal || "Analyze the effectiveness of retrieval-augmented generation for improving factual accuracy in large language models.");
+  const [mode, setMode] = useState(routeState.mode || "full");
+  const [domain, setDomain] = useState(routeState.domain || "AI");
+  const [autoStart, setAutoStart] = useState(routeState.autoStart || false);
 
   const [dragOver, setDragOver] = useState(false);
   const [files, setFiles] = useState([]);
@@ -348,10 +351,17 @@ export default function ResearchDashboard() {
       });
 
     } catch (e) {
-      pushLog(`❌ Error: ${e.message}. Make sure agents service (port 6060) is running.`, "error");
+      pushLog(`❌ Error: ${e.message}. Make sure agents service (port 8000) is running.`, "error");
       setRunning(false);
     }
   }, [goal, mode, domain, running]);
+
+  useEffect(() => {
+    if (autoStart && !running && !runId) {
+      startRun();
+      setAutoStart(false);
+    }
+  }, [autoStart, running, runId, startRun]);
 
   /* ───── Download report ───── */
   async function downloadReport() {

@@ -8,15 +8,20 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 # Load environment variables from .env file
 load_dotenv()
 
-from .schemas import RunRequest, TopicResearchRequest, DocSummaryRequest, DocSummaryResponse, ReportRequest
+from .schemas import (
+    RunRequest, TopicResearchRequest, DocSummaryRequest, DocSummaryResponse, ReportRequest,
+    ExperimentModeRequest, ExperimentAnalysisRequest, ExperimentAnalysisResponse
+)
 from .graphs.research_graph import NODES
 from .tools.summarize import summarize_documents
 from .tools.report import generate_report
 from .agents import knowledge, hypothesis, experiment, execution, analysis, validation, learning
+from .agents.experiment_mode import suggest_experiment, analyze_suggestion
 
 app = FastAPI(title="ARS Agentic Service")
 
@@ -28,6 +33,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ensure static directories exist
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+plots_dir = os.path.join(static_dir, "plots")
+os.makedirs(plots_dir, exist_ok=True)
+
+# Mount static files for plots
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Agent functions mapped by node name
 AGENT_FNS = {
@@ -253,3 +266,15 @@ async def list_runs():
                 "domain": r["state"].get("domain", "AI") if r["state"] else "AI",
             })
     return {"runs": runs_list}
+
+@app.post("/api/experiment/suggestions")
+async def get_experiment_suggestions(req: ExperimentModeRequest):
+    """Generate 3 experiment suggestions for a problem statement."""
+    result = suggest_experiment(req.problem_statement, req.domain)
+    return result
+
+@app.post("/api/experiment/analyze")
+async def analyze_experiment_suggestion(req: ExperimentAnalysisRequest):
+    """Perform deep analysis of a selected experiment suggestion."""
+    result = analyze_suggestion(req.problem_statement, req.suggestion.dict(), req.domain)
+    return result

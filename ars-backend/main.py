@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -36,6 +37,29 @@ if not XAI_API_KEY:
 
 client = OpenAI(api_key=XAI_API_KEY, base_url="https://api.groq.com/openai/v1")
 logger.info("Loaded XAI_API_KEY successfully")
+
+import random
+import time
+import re
+
+def llm_call_backend(messages: list, model: str = "llama-3.1-8b-instant", max_tokens: int = 1200, temperature: float = 0.5):
+    max_retries = 6
+    delays = [1, 2, 5, 10, 15, 30] 
+    for attempt in range(max_retries):
+        try:
+            return client.chat.completions.create(
+                model=model, messages=messages, max_tokens=max_tokens, temperature=temperature
+            )
+        except Exception as e:
+            err_msg = str(e)
+            if "429" in err_msg or "rate_limit" in err_msg.lower():
+                match = re.search(r"try again in (\d+\.?\d*)s", err_msg.lower())
+                wait_time = float(match.group(1)) + 0.5 if match else delays[min(attempt, 5)] + random.uniform(0.5, 2.0)
+                if attempt < max_retries - 1:
+                    time.sleep(wait_time)
+                    continue
+            raise
+    return client.chat.completions.create(model=model, messages=messages, max_tokens=max_tokens, temperature=temperature)
 
 # -----------------------------
 # Security & JWT Utils
@@ -281,6 +305,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 # -----------------------------
 # Request Models
 # -----------------------------
@@ -301,6 +330,20 @@ class ResearchTopicRequest(BaseModel):
 
 class ExperimentModeRequest(BaseModel):
     problem_statement: str
+    domain: str = "AI"
+
+class ExperimentSuggestion(BaseModel):
+    approach: str
+    approach_description: str
+    dataset: str
+    dataset_url: str
+    expected_output: str
+    difficulty: str
+    estimated_time: str
+
+class ExperimentAnalysisRequest(BaseModel):
+    problem_statement: str
+    suggestion: ExperimentSuggestion
     domain: str = "AI"
 
 class UserRegisterRequest(BaseModel):
@@ -456,7 +499,7 @@ def chat(req: ChatRequest):
         })
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=messages,
             max_tokens=500,
             temperature=0.7
@@ -499,7 +542,7 @@ Keep the output practical, detailed, and useful for a research workflow.
 """
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
@@ -534,153 +577,97 @@ Keep the output practical, detailed, and useful for a research workflow.
 # -----------------------------
 @app.post("/api/experiment/mode")
 def experiment_mode(req: ExperimentModeRequest):
-    """
-    Generate experiment suggestions based on a problem statement.
-    This is the killer feature that makes ARS feel like a real scientist.
-    """
-    from datetime import datetime
-    
-    # Domain-specific context for better suggestions
-    domain_context = {
-        "AI": "Focus on machine learning, deep learning, NLP, computer vision, and LLM applications.",
-        "Biology": "Focus on molecular biology, genetics, bioinformatics, and biomedical research.",
-        "Physics": "Focus on theoretical physics, quantum mechanics, astrophysics, and materials science.",
-        "Chemistry": "Focus on organic chemistry, materials chemistry, computational chemistry, and biochemistry.",
-        "Medicine": "Focus on clinical research, drug discovery, medical imaging, and health informatics.",
-        "general": "Focus on data-driven research, statistical analysis, and empirical methods."
-    }
-    
-    context = domain_context.get(req.domain, domain_context["general"])
-    
     try:
-        prompt = f"""You are an expert research scientist and experiment designer. 
-Your task is to suggest complete experiment setups for research problems.
-
-For each suggestion, provide:
-1. approach: A specific ML/AI technique or methodology (e.g., "NLP + BERT", "CNN + ResNet50", "Transformer + GPT")
-2. approach_description: Brief explanation of why this approach fits the problem (2-3 sentences)
-3. dataset: Name of a suitable public dataset
-4. dataset_url: URL or source for the dataset
-5. expected_output: What the experiment should produce (e.g., "classification model", "prediction system", "detector")
-6. difficulty: One of [beginner, intermediate, advanced] based on complexity
-7. estimated_time: Realistic time estimate (e.g., "2-4 hours", "1-2 days", "1 week")
-
-Return ONLY a valid JSON array with 3 suggestions, no markdown, no code blocks.
-Each suggestion should be realistic and actionable."""
-
-        user_prompt = f"""Domain: {req.domain}
-Context for {req.domain}: {context}
-
-Problem Statement: {req.problem_statement}
-
-Suggest 3 different experiment approaches that a researcher could use to tackle this problem.
-Each should be distinct and use different methodologies where possible.
-
-Return as a JSON array with this exact structure:
-[
-  {{
-    "approach": "...",
-    "approach_description": "...",
-    "dataset": "...",
-    "dataset_url": "...",
-    "expected_output": "...",
-    "difficulty": "...",
-    "estimated_time": "..."
-  }},
-  ...
-]"""
-
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = llm_call_backend(
             messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "system", "content": f"Suggest 3 experiment approaches for {req.domain}. Return ONLY a JSON array of objects with: approach, approach_description (2 sentences), dataset, dataset_url, expected_output, difficulty, estimated_time."},
+                {"role": "user", "content": f"Problem: {req.problem_statement}"}
             ],
-            max_tokens=2000,
-            temperature=0.7
+            max_tokens=800
         )
+        content = response.choices[0].message.content.strip()
         
-        response_text = response.choices[0].message.content
-        
-        # Clean and parse JSON
-        cleaned = response_text.strip()
-        if cleaned.startswith("```"):
+        # Robust JSON cleaning
+        cleaned = content
+        if "```" in cleaned:
             parts = cleaned.split("```")
             for part in parts:
-                if part.strip().startswith("["):
-                    cleaned = part.strip()
+                p = part.strip()
+                if p.startswith("json"): p = p[4:].strip()
+                if p.startswith("[") or p.startswith("{"):
+                    cleaned = p
                     break
         
-        if cleaned.startswith("json"):
-            cleaned = cleaned[4:].strip()
-        
-        suggestions = json.loads(cleaned)
-        
-        if not isinstance(suggestions, list):
-            raise ValueError("Response is not a list")
-        
-        # Validate and normalize suggestions
-        validated = []
-        for i, s in enumerate(suggestions):
-            validated.append({
-                "approach": s.get("approach", f"Approach {i+1}"),
-                "approach_description": s.get("approach_description", ""),
-                "dataset": s.get("dataset", "Dataset to be determined"),
-                "dataset_url": s.get("dataset_url", ""),
-                "expected_output": s.get("expected_output", "Research model"),
-                "difficulty": s.get("difficulty", "intermediate"),
-                "estimated_time": s.get("estimated_time", "To be determined")
-            })
-        
-        logger.info(f"Experiment mode suggestions generated for: {req.problem_statement}")
-        
-        return {
-            "success": True,
-            "problem": req.problem_statement,
-            "domain": req.domain,
-            "suggestions": validated,
-            "generated_at": datetime.utcnow().isoformat()
-        }
-        
-    except json.JSONDecodeError as e:
-        # Fallback suggestions if JSON parsing fails
-        logger.warning(f"JSON parse error in experiment mode, using fallback: {e}")
-        return {
-            "success": True,
-            "problem": req.problem_statement,
-            "domain": req.domain,
-            "suggestions": [
-                {
-                    "approach": "Data-driven approach",
-                    "approach_description": "Start with exploratory data analysis and baseline models before advancing to complex methods.",
-                    "dataset": "To be determined based on problem",
-                    "dataset_url": "",
-                    "expected_output": "Baseline model and analysis report",
-                    "difficulty": "beginner",
-                    "estimated_time": "1-2 days"
-                },
-                {
-                    "approach": "ML/AI methodology",
-                    "approach_description": "Apply machine learning techniques appropriate for the data type and problem structure.",
-                    "dataset": "To be determined based on problem",
-                    "dataset_url": "",
-                    "expected_output": "Trained model with evaluation metrics",
-                    "difficulty": "intermediate",
-                    "estimated_time": "3-5 days"
-                },
-                {
-                    "approach": "Advanced deep learning",
-                    "approach_description": "Use state-of-the-art deep learning models for complex pattern recognition.",
-                    "dataset": "To be determined based on problem",
-                    "dataset_url": "",
-                    "expected_output": "Production-ready deep learning system",
-                    "difficulty": "advanced",
-                    "estimated_time": "1-2 weeks"
-                }
-            ],
-            "generated_at": datetime.utcnow().isoformat()
-        }
-        
+        try:
+            suggestions = json.loads(cleaned)
+            return {
+                "success": True,
+                "problem": req.problem_statement,
+                "domain": req.domain,
+                "suggestions": suggestions,
+                "generated_at": datetime.utcnow().isoformat()
+            }
+        except json.JSONDecodeError:
+            # If parsing fails, return a friendly error
+            return {
+                "success": False,
+                "detail": "The AI provided a non-JSON response. Please try a more specific problem statement."
+            }
     except Exception as e:
         logger.error(f"Experiment mode error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"success": False, "detail": str(e)}
+
+@app.post("/api/experiment/analyze")
+def analyze_experiment(req: ExperimentAnalysisRequest):
+    try:
+        response = llm_call_backend(
+            messages=[
+                {"role": "system", "content": f"You are a sports data scientist. Analyze the experiment for {req.domain}. Include hypothetical data findings (e.g., '60% probability of performance uplift'). Be concise. Return ONLY a JSON object with: analysis (1 paragraph with stats), pros (list of 3), cons (list of 3), visualization_plan (list of 2), image_keywords (list of 3), code (concise Python script)."},
+                {"role": "user", "content": f"Problem: {req.problem_statement}\nApproach: {req.suggestion.approach}"}
+            ],
+            max_tokens=1200
+        )
+        content = response.choices[0].message.content.strip()
+        
+        # Robust JSON cleaning
+        cleaned = content
+        if "```" in cleaned:
+            parts = cleaned.split("```")
+            for part in parts:
+                p = part.strip()
+                if p.startswith("json"): p = p[4:].strip()
+                if p.startswith("[") or p.startswith("{"):
+                    cleaned = p
+                    break
+        
+        try:
+            analysis_data = json.loads(cleaned)
+            return {
+                "analysis": analysis_data.get("analysis", ""),
+                "pros": analysis_data.get("pros", []),
+                "cons": analysis_data.get("cons", []),
+                "visualization_plan": analysis_data.get("visualization_plan", []),
+                "image_keywords": analysis_data.get("image_keywords", []),
+                "preview_image_url": "/static/plots/research_preview.png",
+                "code": analysis_data.get("code", ""),
+                "generated_at": datetime.utcnow().isoformat()
+            }
+        except json.JSONDecodeError:
+            return {
+                "analysis": "Error: The AI returned an invalid format.",
+                "pros": [], "cons": [], "visualization_plan": [], "image_keywords": [],
+                "preview_image_url": "/static/plots/research_preview.png",
+                "code": "# Parsing error.",
+                "generated_at": datetime.utcnow().isoformat()
+            }
+    except Exception as e:
+        return {
+            "analysis": f"Error: {str(e)}",
+            "pros": [],
+            "cons": [],
+            "visualization_plan": [],
+            "image_keywords": [],
+            "preview_image_url": "/static/plots/research_preview.png",
+            "code": "# Failed to generate code.",
+            "generated_at": datetime.utcnow().isoformat()
+        }

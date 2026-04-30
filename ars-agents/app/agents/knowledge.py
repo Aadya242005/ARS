@@ -3,7 +3,7 @@ from datetime import datetime
 from ..state import AgentState
 from ..tools.retriever import retrieve
 from ..tools.web import comprehensive_research
-from ..client import client
+from ..client import client, llm_call
 
 def run(state: AgentState) -> AgentState:
     state["active_node"] = "knowledge"
@@ -101,8 +101,8 @@ def run(state: AgentState) -> AgentState:
 
     # Step 4: Call OpenAI to analyze and extract key knowledge points
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = llm_call(
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
