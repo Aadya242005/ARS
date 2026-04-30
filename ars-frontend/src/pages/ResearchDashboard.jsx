@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import {
   ExperimentResultsChart,
   EvaluationRadarChart,
@@ -225,7 +225,7 @@ export default function ResearchDashboard() {
           setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, status: "failed" } : x)));
           pushLog(`❌ Failed to index ${f.name}`, "error");
         }
-      } catch (e) {
+      } catch (err) {
         // Fallback: simulate indexing if backend not available
         setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, status: "embedding" } : x)));
         await new Promise((r) => setTimeout(r, 500));

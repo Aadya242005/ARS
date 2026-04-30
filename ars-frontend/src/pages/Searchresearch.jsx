@@ -168,7 +168,7 @@ export default function SearchResearch() {
       if (nm) return { type: "item", num: nm[1], bold: nm[2], rest: nm[3] };
       const ns = line.match(/^(\d+)\.\s+(.*)/);
       if (ns) return { type: "item", num: ns[1], bold: null, rest: ns[2] };
-      if (/^[\u2022\-]\s+/.test(line)) return { type: "bullet", text: stripMD(line.replace(/^[\u2022\-]\s+/, "")) };
+      if (/^[\u2022-]\s+/.test(line)) return { type: "bullet", text: stripMD(line.replace(/^[\u2022-]\s+/, "")) };
       return { type: "para", text: stripMD(line) };
     });
   }
