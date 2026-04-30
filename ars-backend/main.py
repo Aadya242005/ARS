@@ -72,7 +72,9 @@ pwd_context = None # Removed passlib
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    if isinstance(hashed_password, str):
+        hashed_password = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password)
 
 def get_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -347,7 +349,7 @@ class ExperimentAnalysisRequest(BaseModel):
     domain: str = "AI"
 
 class UserRegisterRequest(BaseModel):
-    full_name: str
+    full_name: Optional[str] = None
     email: str
     password: str
 
@@ -380,9 +382,10 @@ def register(user: UserRegisterRequest):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_pw = get_password_hash(user.password)
+    display_name = user.full_name or user.email.split("@")[0]
     c.execute(
         "INSERT INTO users (full_name, email, password_hash, is_google_auth) VALUES (?, ?, ?, ?)",
-        (user.full_name, user.email, hashed_pw, False)
+        (display_name, user.email, hashed_pw, False)
     )
     conn.commit()
     conn.close()
@@ -523,13 +526,17 @@ def research_topic(req: ResearchTopicRequest):
     """Start research pipeline for a topic"""
     try:
         prompt = f"""
-You are an advanced agentic research assistant.
+You are an advanced agentic research assistant. 
 
 Topic: {req.topic}
 Mode: {req.mode}
 
-Generate a structured research response with:
-1. Topic overview
+Generate a comprehensive research response. 
+IMPORTANT: If the topic is a question (e.g., 'how many teams are in IPL'), provide the DIRECT ANSWER in the 'Topic overview' section first. 
+Include specific details, names, and facts (e.g., 'There are 10 teams: RCB, CSK, MI...', etc.) to make the research actionable and high-quality.
+
+Structure:
+1. Topic overview (With direct answers to any questions asked)
 2. Important research aspects
 3. Advanced problem statements
 4. Research directions
@@ -537,12 +544,10 @@ Generate a structured research response with:
 6. Data or resources required
 7. Expected outputs
 8. Step-by-step roadmap
-
-Keep the output practical, detailed, and useful for a research workflow.
 """
 
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",

@@ -156,7 +156,8 @@ export default function ExperimentMode() {
       if (data.success) {
         setResults(data);
       } else {
-        setError(data.detail || "Failed to generate suggestions");
+        const errorMsg = typeof data.detail === 'object' ? JSON.stringify(data.detail) : data.detail;
+        setError(errorMsg || "Failed to generate suggestions");
       }
     } catch (err) {
       setError(
@@ -194,7 +195,8 @@ export default function ExperimentMode() {
       if (response.ok) {
         setAnalysis(data);
       } else {
-        setError(data.error || "Failed to analyze suggestion");
+        const errorMsg = typeof data.error === 'object' ? JSON.stringify(data.error) : data.error;
+        setError(errorMsg || "Failed to analyze suggestion");
       }
     } catch (err) {
       setError("Failed to connect to backend for analysis.");

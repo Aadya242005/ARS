@@ -31,7 +31,13 @@ const Login = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || 'Something went wrong');
+        let errorMsg = data.detail || data.error || 'Something went wrong';
+        if (Array.isArray(errorMsg)) {
+          errorMsg = errorMsg.map(err => `${err.loc.join('.')}: ${err.msg}`).join(', ');
+        } else if (typeof errorMsg === 'object') {
+          errorMsg = JSON.stringify(errorMsg);
+        }
+        throw new Error(errorMsg);
       }
 
       if (isLogin) {
@@ -43,7 +49,8 @@ const Login = () => {
         setError('Registration successful! Please login.');
       }
     } catch (err) {
-      setError(err.message);
+      const errorMsg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
