@@ -74,3 +74,18 @@ class ExperimentModeResponse(BaseModel):
     domain: str
     suggestions: List[ExperimentSuggestion]
     generated_at: str
+
+class ExperimentAnalysisRequest(BaseModel):
+    problem_statement: str
+    suggestion: ExperimentSuggestion
+    domain: str = "AI"
+
+class ExperimentAnalysisResponse(BaseModel):
+    analysis: str
+    pros: List[str]
+    cons: List[str]
+    visualization_plan: List[str]
+    image_keywords: List[str]
+    preview_image_url: Optional[str] = None
+    code: str
+    generated_at: str

@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 from ..state import AgentState
-from ..client import client
+from ..client import client, llm_call
 
 def run(state: AgentState) -> AgentState:
     state["active_node"] = "experiment"
@@ -24,8 +24,8 @@ def run(state: AgentState) -> AgentState:
     ])
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = llm_call(
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",

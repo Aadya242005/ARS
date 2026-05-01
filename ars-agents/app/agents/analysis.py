@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 from ..state import AgentState
-from ..client import client
+from ..client import client, llm_call
 
 def run(state: AgentState) -> AgentState:
     state["active_node"] = "analysis"
@@ -47,8 +47,8 @@ def run(state: AgentState) -> AgentState:
     ])
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = llm_call(
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
@@ -100,14 +100,19 @@ Analyze the results comprehensively. Return JSON object with patterns, conclusio
             if not isinstance(analysis, dict):
                 raise ValueError("Response is not an object")
 
+            def sanitize_list(lst):
+                if not isinstance(lst, list):
+                    return []
+                return [str(item) for item in lst]
+
             ws = state.setdefault("workspace", {})
             ws["analysis"] = {
-                "patterns": analysis.get("patterns", []),
-                "conclusions": analysis.get("conclusions", []),
-                "improvements": analysis.get("improvements", []),
-                "key_insight": analysis.get("key_insight", ""),
-                "effect_sizes": analysis.get("effect_sizes", []),
-                "limitations": analysis.get("limitations", []),
+                "patterns": sanitize_list(analysis.get("patterns", [])),
+                "conclusions": sanitize_list(analysis.get("conclusions", [])),
+                "improvements": sanitize_list(analysis.get("improvements", [])),
+                "key_insight": str(analysis.get("key_insight", "")),
+                "effect_sizes": sanitize_list(analysis.get("effect_sizes", [])),
+                "limitations": sanitize_list(analysis.get("limitations", [])),
             }
 
             state.setdefault("logs", []).append({

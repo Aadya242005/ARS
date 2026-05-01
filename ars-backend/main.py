@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -71,7 +72,9 @@ pwd_context = None # Removed passlib
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    if isinstance(hashed_password, str):
+        hashed_password = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password)
 
 def get_password_hash(password):
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -304,6 +307,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 # -----------------------------
 # Request Models
 # -----------------------------
@@ -341,7 +349,7 @@ class ExperimentAnalysisRequest(BaseModel):
     domain: str = "AI"
 
 class UserRegisterRequest(BaseModel):
-    full_name: str
+    full_name: Optional[str] = None
     email: str
     password: str
 
@@ -374,9 +382,10 @@ def register(user: UserRegisterRequest):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_pw = get_password_hash(user.password)
+    display_name = user.full_name or user.email.split("@")[0]
     c.execute(
         "INSERT INTO users (full_name, email, password_hash, is_google_auth) VALUES (?, ?, ?, ?)",
-        (user.full_name, user.email, hashed_pw, False)
+        (display_name, user.email, hashed_pw, False)
     )
     conn.commit()
     conn.close()
@@ -493,7 +502,7 @@ def chat(req: ChatRequest):
         })
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=messages,
             max_tokens=500,
             temperature=0.7
@@ -517,13 +526,17 @@ def research_topic(req: ResearchTopicRequest):
     """Start research pipeline for a topic"""
     try:
         prompt = f"""
-You are an advanced agentic research assistant.
+You are an advanced agentic research assistant. 
 
 Topic: {req.topic}
 Mode: {req.mode}
 
-Generate a structured research response with:
-1. Topic overview
+Generate a comprehensive research response. 
+IMPORTANT: If the topic is a question (e.g., 'how many teams are in IPL'), provide the DIRECT ANSWER in the 'Topic overview' section first. 
+Include specific details, names, and facts (e.g., 'There are 10 teams: RCB, CSK, MI...', etc.) to make the research actionable and high-quality.
+
+Structure:
+1. Topic overview (With direct answers to any questions asked)
 2. Important research aspects
 3. Advanced problem statements
 4. Research directions
@@ -531,8 +544,6 @@ Generate a structured research response with:
 6. Data or resources required
 7. Expected outputs
 8. Step-by-step roadmap
-
-Keep the output practical, detailed, and useful for a research workflow.
 """
 
         response = client.chat.completions.create(
@@ -574,12 +585,14 @@ def experiment_mode(req: ExperimentModeRequest):
     try:
         response = llm_call_backend(
             messages=[
-                {"role": "system", "content": f"Suggest 3 experiment approaches for {req.domain}. Return ONLY a JSON array of objects with: approach, approach_description, dataset, dataset_url, expected_output, difficulty, estimated_time."},
+                {"role": "system", "content": f"Suggest 3 experiment approaches for {req.domain}. Return ONLY a JSON array of objects with: approach, approach_description (2 sentences), dataset, dataset_url, expected_output, difficulty, estimated_time."},
                 {"role": "user", "content": f"Problem: {req.problem_statement}"}
             ],
             max_tokens=800
         )
         content = response.choices[0].message.content.strip()
+        
+        # Robust JSON cleaning
         cleaned = content
         if "```" in cleaned:
             parts = cleaned.split("```")
@@ -589,6 +602,7 @@ def experiment_mode(req: ExperimentModeRequest):
                 if p.startswith("[") or p.startswith("{"):
                     cleaned = p
                     break
+        
         try:
             suggestions = json.loads(cleaned)
             return {
@@ -598,9 +612,14 @@ def experiment_mode(req: ExperimentModeRequest):
                 "suggestions": suggestions,
                 "generated_at": datetime.utcnow().isoformat()
             }
-        except:
-            return {"success": False, "detail": "AI returned invalid format. Please try again."}
+        except json.JSONDecodeError:
+            # If parsing fails, return a friendly error
+            return {
+                "success": False,
+                "detail": "The AI provided a non-JSON response. Please try a more specific problem statement."
+            }
     except Exception as e:
+        logger.error(f"Experiment mode error: {e}")
         return {"success": False, "detail": str(e)}
 
 @app.post("/api/experiment/analyze")
@@ -608,39 +627,52 @@ def analyze_experiment(req: ExperimentAnalysisRequest):
     try:
         response = llm_call_backend(
             messages=[
-                {"role": "system", "content": "You are a research scientist. Provide a technical analysis in JSON format. Do not include any text before or after the JSON."},
-                {"role": "user", "content": f"Analyze this experiment: {req.suggestion.approach} for problem: {req.problem_statement}. Return JSON with: analysis (paragraph), pros (list), cons (list), visualization_plan (list), code (Python), chart_data (list of 5 {{\"name\": \"...\", \"value\": 0-100}} objects)."}
+                {"role": "system", "content": f"You are a sports data scientist. Analyze the experiment for {req.domain}. Include hypothetical data findings (e.g., '60% probability of performance uplift'). Be concise. Return ONLY a JSON object with: analysis (1 paragraph with stats), pros (list of 3), cons (list of 3), visualization_plan (list of 2), image_keywords (list of 3), code (concise Python script)."},
+                {"role": "user", "content": f"Problem: {req.problem_statement}\nApproach: {req.suggestion.approach}"}
             ],
-            model="llama-3.3-70b-versatile",
-            max_tokens=1500
+            max_tokens=1200
         )
         content = response.choices[0].message.content.strip()
-        logger.info(f"Raw Analysis Content: {content[:100]}...")
         
-        # Aggressive JSON extraction using regex
-        import re
-        match = re.search(r"(\{.*\})", content, re.DOTALL)
-        cleaned = match.group(1) if match else content
+        # Robust JSON cleaning
+        cleaned = content
+        if "```" in cleaned:
+            parts = cleaned.split("```")
+            for part in parts:
+                p = part.strip()
+                if p.startswith("json"): p = p[4:].strip()
+                if p.startswith("[") or p.startswith("{"):
+                    cleaned = p
+                    break
         
         try:
             analysis_data = json.loads(cleaned)
             return {
-                "analysis": analysis_data.get("analysis", "No analysis provided."),
+                "analysis": analysis_data.get("analysis", ""),
                 "pros": analysis_data.get("pros", []),
                 "cons": analysis_data.get("cons", []),
                 "visualization_plan": analysis_data.get("visualization_plan", []),
                 "image_keywords": analysis_data.get("image_keywords", []),
                 "preview_image_url": "/static/plots/research_preview.png",
-                "code": analysis_data.get("code", "# No code provided."),
-                "chart_data": analysis_data.get("chart_data", []),
+                "code": analysis_data.get("code", ""),
                 "generated_at": datetime.utcnow().isoformat()
             }
-        except Exception as e:
-            logger.error(f"JSON Parse Error: {e}")
+        except json.JSONDecodeError:
             return {
-                "analysis": "Parsing failed.",
-                "pros": ["N/A"], "cons": ["N/A"], "code": f"# Raw Response:\n{content}",
-                "chart_data": [{"name": "Error", "value": 0}]
+                "analysis": "Error: The AI returned an invalid format.",
+                "pros": [], "cons": [], "visualization_plan": [], "image_keywords": [],
+                "preview_image_url": "/static/plots/research_preview.png",
+                "code": "# Parsing error.",
+                "generated_at": datetime.utcnow().isoformat()
             }
     except Exception as e:
-        return {"analysis": f"Error: {str(e)}", "pros": [], "cons": [], "code": "# Error"}
+        return {
+            "analysis": f"Error: {str(e)}",
+            "pros": [],
+            "cons": [],
+            "visualization_plan": [],
+            "image_keywords": [],
+            "preview_image_url": "/static/plots/research_preview.png",
+            "code": "# Failed to generate code.",
+            "generated_at": datetime.utcnow().isoformat()
+        }

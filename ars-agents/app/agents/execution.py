@@ -2,7 +2,8 @@ import os
 import json
 from datetime import datetime
 from ..state import AgentState
-from ..client import client
+from ..client import client, llm_call
+from ..tools.viz import generate_experiment_plots
 
 def run(state: AgentState) -> AgentState:
     state["active_node"] = "execution"
@@ -42,8 +43,8 @@ def run(state: AgentState) -> AgentState:
     ])
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = llm_call(
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
@@ -115,6 +116,11 @@ Simulate execution results with realistic metrics. Return JSON array."""
 
             ws = state.setdefault("workspace", {})
             ws["results"] = validated
+            
+            # Generate visualization plot
+            run_id = state.get("run_id", "unknown")
+            plot_url = generate_experiment_plots(validated, run_id)
+            ws["plot_url"] = plot_url
 
             passed = sum(1 for r in validated if r["status"] == "PASS")
             state.setdefault("logs", []).append({
