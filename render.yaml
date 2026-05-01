@@ -3,12 +3,13 @@ services:
   - type: web
     name: ars-backend
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port 5050
     rootDir: ars-backend
     envVars:
       - key: XAI_API_KEY
-        sync: false # User must set this in Render UI
+        sync: false
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: PORT
@@ -18,12 +19,13 @@ services:
   - type: web
     name: ars-agents
     env: python
+    plan: free
     buildCommand: pip install -r app/requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000
     rootDir: ars-agents
     envVars:
       - key: XAI_API_KEY
-        sync: false # User must set this in Render UI
+        sync: false
       - key: BACKEND_URL
         fromService:
           name: ars-backend
@@ -36,13 +38,15 @@ services:
   - type: web
     name: ars-frontend
     runtime: static
+    plan: free
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     rootDir: ars-frontend
     envVars:
       - key: VITE_BACKEND_API_URL
-        sync: false # User will set these in Render UI
+        sync: false
       - key: VITE_AGENTS_API_URL
         sync: false
+
 
 
