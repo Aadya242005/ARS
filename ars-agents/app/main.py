@@ -42,6 +42,10 @@ os.makedirs(plots_dir, exist_ok=True)
 # Mount static files for plots
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+@app.get("/")
+async def root():
+    return {"status": "online", "message": "ARS Agentic Service is running"}
+
 # Agent functions mapped by node name
 AGENT_FNS = {
     "knowledge": knowledge.run,
