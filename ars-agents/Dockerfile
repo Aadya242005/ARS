@@ -7,9 +7,8 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Note: requirements.txt is in the root of the service directory usually, 
-# but in this project it seems to be in app/requirements.txt
-COPY app/requirements.txt .
+# requirements.txt is now in the root of the service directory
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
