@@ -33,14 +33,16 @@ services:
         value: 8000
 
   # ── Frontend Service ─────────────────────────────────────────────
-  - type: static
+  - type: web
     name: ars-frontend
+    runtime: static
     buildCommand: npm install && npm run build
-    staticPublishDir: dist
+    staticPublishPath: dist
     rootDir: ars-frontend
     envVars:
       - key: VITE_BACKEND_API_URL
         sync: false # User will set these in Render UI
       - key: VITE_AGENTS_API_URL
         sync: false
+
 
