@@ -16,6 +16,7 @@ import {
   Code,
   ExternalLink,
 } from "lucide-react";
+import { BACKEND_API } from "../config";
 
 const DOMAINS = [
   { value: "AI", label: "Artificial Intelligence", icon: "🤖" },
@@ -140,7 +141,7 @@ export default function ExperimentMode() {
 
     try {
       const response = await fetch(
-        "http://localhost:5050/api/experiment/mode",
+        `${BACKEND_API}/api/experiment/mode`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -181,7 +182,7 @@ export default function ExperimentMode() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:5050/api/experiment/analyze", {
+      const response = await fetch(`${BACKEND_API}/api/experiment/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -458,7 +459,7 @@ export default function ExperimentMode() {
                             </h3>
                             <div className="aspect-video rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative group">
                               <img
-                                src={`http://localhost:5050${analysis.preview_image_url}`}
+                                src={`${BACKEND_API}${analysis.preview_image_url}`}
                                 alt="Research Visualization"
                                 className="w-full h-full object-cover"
                               />

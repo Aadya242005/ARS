@@ -7,7 +7,8 @@ import { Canvas } from "@react-three/fiber";
 import { Center, Environment, OrbitControls, useGLTF } from "@react-three/drei";
 
 import { SoundButton } from "../context/SoundContext";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { BACKEND_API } from "../config";
 
 import {
   ArrowRight,
@@ -223,7 +224,7 @@ export default function Home() {
     setInput(""); setMessages((m) => [...m, { role: "user", text }]); setBusy(true);
 
     try {
-      const res = await fetch("http://localhost:5050/api/chat", {
+      const res = await fetch(`${BACKEND_API}/api/chat`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, history }),
       });

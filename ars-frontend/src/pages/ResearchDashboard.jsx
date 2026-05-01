@@ -13,10 +13,10 @@ import {
   KnowledgeCard, HypothesisCard, ExperimentCard,
   ResultCard, AnalysisSection, LearningSection,
 } from "../components/ResearchCards";
+import { BACKEND_API, AGENTS_API } from "../config";
 
 /* ───────── Constants ───────── */
-const AGENTS_API = "http://localhost:8000";
-const BACKEND_API = "http://localhost:5050";
+// Constants are now imported from ../config.js
 
 const AGENTS = [
   { key: "knowledge", label: "Knowledge", icon: "📚", desc: "Extract key insights" },

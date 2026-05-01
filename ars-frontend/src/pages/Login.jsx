@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
+import { BACKEND_API } from '../config';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,7 +21,7 @@ const Login = () => {
     const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
 
     try {
-      const response = await fetch(`http://localhost:5050${endpoint}`, {
+      const response = await fetch(`${BACKEND_API}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -59,7 +60,7 @@ const Login = () => {
   const handleGoogleSuccess = async (credentialResponse) => {
     setError('');
     try {
-      const response = await fetch('http://localhost:5050/api/auth/google', {
+      const response = await fetch(`${BACKEND_API}/api/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
