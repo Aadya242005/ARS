@@ -10,6 +10,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Layout,
+  Zap,
+  Image,
+  BarChart3,
+  Code,
+  ExternalLink,
 } from "lucide-react";
 
 const DOMAINS = [
@@ -448,7 +453,7 @@ export default function ExperimentMode() {
 
                           <div className="space-y-6">
                             <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-                              <ImageIcon className="h-5 w-5 text-cyan-600" />
+                              <Image className="h-5 w-5 text-cyan-600" />
                               Visual Preview
                             </h3>
                             <div className="aspect-video rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative group">
